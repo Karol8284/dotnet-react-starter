@@ -120,7 +120,7 @@ backend/
 ├── tests/
 │   ├── ECommerce.UnitTests/                   # Unit Tests
 │   │   ├── Application/
-│   │   │   ├── Services/
+│   │   │   ├── Application/
 │   │   │   │   ├── ProductServiceTests.cs
 │   │   │   │   ├── OrderServiceTests.cs
 │   │   │   │   └── UserServiceTests.cs
