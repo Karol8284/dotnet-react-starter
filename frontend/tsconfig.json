@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "target": "es5",
+    "target": "es6", // Updated from "es5" to "es6" for modern JavaScript compatibility
     "lib": [
       "dom",
       "dom.iterable",
@@ -13,12 +13,13 @@
     "strict": true,
     "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true,
-    "module": "esnext",
-    "moduleResolution": "node",
+    "module": "Node16", // Updated from "esnext" to "Node16" for compatibility with "moduleResolution: node16"
+    "moduleResolution": "node16", // Updated from "node" to "node16" for modern compatibility
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "ignoreDeprecations": "6.0" // Suppress deprecation warnings for TypeScript 6.0
   },
   "include": [
     "src"

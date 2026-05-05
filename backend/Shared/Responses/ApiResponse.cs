@@ -1,53 +1,97 @@
 namespace Shared.Responses;
 
 /// <summary>
-/// Standardowa odpowiedź API dla wszystkich endpointów
+/// Standardized API response wrapper for all endpoints
 /// </summary>
 public class ApiResponse<T>
 {
     /// <summary>
-    /// Czy operacja się powiodła
+    /// HTTP status code
     /// </summary>
-    public bool Success { get; set; }
+    public int StatusCode { get; set; }
 
     /// <summary>
-    /// Wiadomość dla klienta
+    /// Response message
     /// </summary>
     public string Message { get; set; } = string.Empty;
 
     /// <summary>
-    /// Dane zwrócone z API
+    /// Response data
     /// </summary>
     public T? Data { get; set; }
 
     /// <summary>
-    /// Błędy (jeśli było)
+    /// List of validation/error details
     /// </summary>
-    public Dictionary<string, string[]>? Errors { get; set; }
+    public List<ErrorDetail>? Errors { get; set; }
 
     /// <summary>
-    /// Konstruktor dla sukcesu
+    /// Timestamp of response
     /// </summary>
-    public static ApiResponse<T> SuccessResult(T? data, string message = "Operation successful")
+    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// Constructor for successful response
+    /// </summary>
+    public ApiResponse(int statusCode, string message, T? data = default)
     {
-        return new ApiResponse<T>
-        {
-            Success = true,
-            Message = message,
-            Data = data
-        };
+        StatusCode = statusCode;
+        Message = message;
+        Data = data;
     }
 
     /// <summary>
-    /// Konstruktor dla błędu
+    /// Constructor for error response
     /// </summary>
-    public static ApiResponse<T> ErrorResult(string message, Dictionary<string, string[]>? errors = null)
+    public ApiResponse(int statusCode, string message, List<ErrorDetail>? errors = null)
     {
-        return new ApiResponse<T>
-        {
-            Success = false,
-            Message = message,
-            Errors = errors
-        };
+        StatusCode = statusCode;
+        Message = message;
+        Errors = errors;
+    }
+
+    /// <summary>
+    /// Success response
+    /// </summary>
+    public static ApiResponse<T> Success(T data, string message = "Success", int statusCode = 200)
+    {
+        return new ApiResponse<T>(statusCode, message, data);
+    }
+
+    /// <summary>
+    /// Error response
+    /// </summary>
+    public static ApiResponse<T> Error(int statusCode, string message, List<ErrorDetail>? errors = null)
+    {
+        return new ApiResponse<T>(statusCode, message, errors);
     }
 }
+
+/// <summary>
+/// Non-generic version for responses without data
+/// </summary>
+public class ApiResponse
+{
+    public int StatusCode { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public List<ErrorDetail>? Errors { get; set; }
+    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+
+    public ApiResponse(int statusCode, string message, List<ErrorDetail>? errors = null)
+    {
+        StatusCode = statusCode;
+        Message = message;
+        Errors = errors;
+    }
+
+    public static ApiResponse Success(string message = "Success", int statusCode = 200)
+    {
+        return new ApiResponse(statusCode, message);
+    }
+
+    public static ApiResponse Error(int statusCode, string message, List<ErrorDetail>? errors = null)
+    {
+        return new ApiResponse(statusCode, message, errors);
+    }
+}
+
