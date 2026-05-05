@@ -1,4 +1,4 @@
-# Nie aktualne już, jak popraweie projekt to zmienie READMY.md
+# Nie aktualne już, jak poprawie projekt to zmienie READMY.md
 # 🚀 .NET React Starter
 
 A modern, production-ready starter template for building full-stack web applications with **.NET 8 API** and **React + TypeScript**.
