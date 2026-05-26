@@ -26,6 +26,7 @@ public class RegisterUserDtoValidator : AbstractValidator<RegisterUserDto>
             .MaximumLength(250).WithMessage("Address must be at most 250 characters");
 
         RuleFor(x => x.CreatedAt)
-            .LessThanOrEqualTo(DateTime.UtcNow).WithMessage("CreatedAt cannot be in the future");
+            .Must(createdAt => createdAt <= DateTime.UtcNow)
+            .WithMessage("CreatedAt cannot be in the future");
     }
 }
