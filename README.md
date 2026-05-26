@@ -1,4 +1,6 @@
-# Aktualny poziom realizacji projektu: 
+# Aktualny poziom realizacji projektu:
+(Oceniony przez AI, chciałem procentowego oszacowania,abym wiedział ile przedemną, do napisania jeszcze jest, aktualnie chyba głównei testy i szlify do V1.0
+<br>
 Oto szacunkowa ocena postępu do wersji V1.0 (MVP, produkcyjny JWT + Users CRUD, bez zaawansowanych ficzerów):
 
 **Cały projekt (V1.0): ok. 70%**
