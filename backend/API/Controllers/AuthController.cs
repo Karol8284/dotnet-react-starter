@@ -123,18 +123,13 @@ namespace API.Controllers
             {
                 _logger.LogInformation("🔄 Refresh token request");
 
-                // Check if refresh token is revoked
-                var isRevoked = await _jwtTokenService.IsTokenRevokedAsync(request.RefreshToken);
-                if (isRevoked)
+                var tokens = await _jwtTokenService.RefreshTokensAsync(request.RefreshToken);
+                if (tokens == null)
                 {
-                    _logger.LogWarning("⚠️ Refresh token is revoked");
-                    return Unauthorized(ApiResponse<object>.Error(401, "Refresh token has been revoked", null));
+                    return Unauthorized(ApiResponse<object>.Error(401, "Invalid or expired refresh token", null));
                 }
 
-                // TODO: Verify refresh token in database and get associated user
-                // For now, returning error as this requires DB integration
-                _logger.LogError("❌ Refresh token verification not implemented");
-                return Unauthorized(ApiResponse<object>.Error(401, "Invalid refresh token", null));
+                return Ok(ApiResponse<JwtTokens>.Success(tokens, "Token refreshed successfully", 200));
             }
             catch (Exception ex)
             {
