@@ -62,6 +62,30 @@ public class JwtTokenServiceTests
     }
 
     [Fact]
+    public async Task ValidateTokenAsync_Returns_null_for_invalid_token()
+    {
+        var options = UnitTestHelper.CreateInMemoryDatabaseOptions("JwtTokenServiceTestsInvalidToken");
+        await using var context = new ApplicationDbContext(options);
+        var service = new JwtTokenService(UnitTestHelper.CreateJwtSettingsOptions(), context, NullLogger<JwtTokenService>.Instance);
+
+        var principal = await service.ValidateTokenAsync("invalid-token");
+
+        Assert.Null(principal);
+    }
+
+    [Fact]
+    public async Task RefreshTokensAsync_Returns_null_for_invalid_refresh_token()
+    {
+        var options = UnitTestHelper.CreateInMemoryDatabaseOptions("JwtTokenServiceTestsInvalidRefresh");
+        await using var context = new ApplicationDbContext(options);
+        var service = new JwtTokenService(UnitTestHelper.CreateJwtSettingsOptions(), context, NullLogger<JwtTokenService>.Instance);
+
+        var refreshedTokens = await service.RefreshTokensAsync("invalid-refresh");
+
+        Assert.Null(refreshedTokens);
+    }
+
+    [Fact]
     public async Task RefreshTokensAsync_Rotates_refresh_token_and_revokes_old_token()
     {
         var options = UnitTestHelper.CreateInMemoryDatabaseOptions("JwtTokenServiceTests3");

@@ -79,6 +79,57 @@ public class AuthControllerTests
     }
 
     [Fact]
+    public async Task Register_Returns_bad_request_when_user_already_exists()
+    {
+        var dto = new RegisterUserDto { Email = "test@example.com", FirstName = "New", LastName = "User", CreatedAt = DateTime.UtcNow };
+
+        _authServiceMock.Setup(x => x.UserExistsAsync(dto.Email)).ReturnsAsync(true);
+
+        var actionResult = await _controller.Register(dto);
+
+        var badRequestResult = Assert.IsType<BadRequestObjectResult>(actionResult);
+        var response = Assert.IsType<ApiResponse<object>>(badRequestResult.Value);
+
+        Assert.Equal(400, badRequestResult.StatusCode);
+        Assert.Equal("User with this email already exists", response.Message);
+    }
+
+    [Fact]
+    public async Task Logout_Returns_bad_request_when_refresh_token_is_missing()
+    {
+        var request = new LogoutRequest { RefreshToken = string.Empty };
+        var userId = Guid.NewGuid().ToString();
+        var user = ControllerTestHelper.CreateAuthenticatedUser(userId, "user@test.com");
+
+        _controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = ControllerTestHelper.CreateHttpContext(user)
+        };
+
+        var actionResult = await _controller.Logout(request);
+
+        var badRequestResult = Assert.IsType<BadRequestObjectResult>(actionResult);
+        var response = Assert.IsType<ApiResponse<object>>(badRequestResult.Value);
+
+        Assert.Equal(400, badRequestResult.StatusCode);
+        Assert.Equal("Refresh token is required", response.Message);
+    }
+
+    [Fact]
+    public async Task VerifyToken_Returns_bad_request_when_token_is_missing()
+    {
+        var request = new VerifyTokenRequest { Token = string.Empty };
+
+        var actionResult = await _controller.VerifyToken(request);
+
+        var badRequestResult = Assert.IsType<BadRequestObjectResult>(actionResult);
+        var response = Assert.IsType<ApiResponse<object>>(badRequestResult.Value);
+
+        Assert.Equal(400, badRequestResult.StatusCode);
+        Assert.Equal("Token is required", response.Message);
+    }
+
+    [Fact]
     public async Task RefreshToken_Returns_ok_when_refresh_succeeds()
     {
         var request = new RefreshTokenRequest { RefreshToken = "refresh-token" };
