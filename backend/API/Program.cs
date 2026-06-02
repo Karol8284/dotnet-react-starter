@@ -1,17 +1,17 @@
 using API.Filters;
 using API.Middleware;
+using API.Configurations;
 using Application.Services;
 using Domain.Interfaces;
+using FluentValidation;
 using FluentValidation.AspNetCore;
 using Infrastructure.Data;
 using Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
-using Scalar.AspNetCore;
+using Microsoft.Extensions.Options;
 using Serilog;
 using Shared.Settings;
-using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -34,51 +34,47 @@ try
     builder.Host.UseSerilog();
 
     // Add services to the container
-    builder.Services.AddControllers()
-        .AddFluentValidation(config =>
-        {
-            config.RegisterValidatorsFromAssemblyContaining<Program>();
-            config.DisableDataAnnotationsValidation = false;
-        });
-    builder.Services.AddOpenApi();
+    builder.Services.AddControllers();
+    builder.Services.AddFluentValidationAutoValidation()
+        .AddFluentValidationClientsideAdapters();
+    builder.Services.AddValidatorsFromAssemblyContaining<Program>();
+    if (!builder.Environment.IsEnvironment("Integration"))
+    {
+        builder.Services.AddSwaggerGen();
+    }
 
     // Configure DbContext
-    var connectionString = builder.Configuration["DefaultConne  ction"]
-        ?? builder.Configuration["DbConnectionString"]
-        ?? throw new InvalidOperationException("Connection string not found");
+    var connectionString = builder.Configuration["DefaultConnection"]
+        ?? builder.Configuration["DbConnectionString"];
 
-    builder.Services.AddDbContext<ApplicationDbContext>(options =>
-        options.UseNpgsql(connectionString));
+    if (string.IsNullOrWhiteSpace(connectionString) && builder.Environment.IsEnvironment("Integration"))
+    {
+        builder.Services.AddDbContext<ApplicationDbContext>(options =>
+            options.UseInMemoryDatabase("IntegrationTestDb"));
+    }
+    else
+    {
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new InvalidOperationException("Connection string not found");
+        }
 
-    // Add Swagger
-    builder.Services.AddSwaggerGen();
+        builder.Services.AddDbContext<ApplicationDbContext>(options =>
+            options.UseNpgsql(connectionString));
+    }
 
     // Configure JWT Settings
     builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("Jwt"));
 
     // Configure JWT Authentication
-    var jwtSettings = builder.Configuration.GetSection("Jwt").Get<JwtSettings>();
-    if (jwtSettings == null)
-        throw new InvalidOperationException("JWT settings not configured in appsettings.json");
-
     builder.Services.AddAuthentication(options =>
     {
         options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
         options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
     })
-    .AddJwtBearer(options =>
-    {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = jwtSettings.Issuer,
-            ValidAudience = jwtSettings.Audience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Secret))
-        };
-    });
+    .AddJwtBearer();
+
+    builder.Services.AddSingleton<IConfigureNamedOptions<JwtBearerOptions>, JwtBearerOptionsSetup>();
 
     // Register services
     builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
@@ -124,7 +120,6 @@ try
 
     if (app.Environment.IsDevelopment())
     {
-        app.MapOpenApi();
         app.UseSwagger();
         app.UseSwaggerUI();
         Log.Information("📖 Swagger UI available at /swagger");

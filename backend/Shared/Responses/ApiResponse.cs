@@ -31,6 +31,13 @@ public class ApiResponse<T>
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
 
     /// <summary>
+    /// Parameterless constructor required for JSON deserialization
+    /// </summary>
+    public ApiResponse()
+    {
+    }
+
+    /// <summary>
     /// Constructor for successful response
     /// </summary>
     public ApiResponse(int statusCode, string message, T? data = default)
@@ -76,6 +83,10 @@ public class ApiResponse
     public string Message { get; set; } = string.Empty;
     public List<ErrorDetail>? Errors { get; set; }
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+
+    public ApiResponse()
+    {
+    }
 
     public ApiResponse(int statusCode, string message, List<ErrorDetail>? errors = null)
     {

@@ -22,6 +22,7 @@
     "ignoreDeprecations": "6.0" // Suppress deprecation warnings for TypeScript 6.0
   },
   "include": [
-    "src"
+    "src",
+    "tests"
   ]
 }

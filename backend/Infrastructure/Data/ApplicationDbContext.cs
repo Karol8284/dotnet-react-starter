@@ -1,3 +1,4 @@
+using Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace Infrastructure.Data;
@@ -12,6 +13,8 @@ public class ApplicationDbContext : DbContext
     {
     }
 
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+
     /// <summary>
     /// Konfiguracja modeli i relacji między encjami
     /// </summary>
@@ -19,8 +22,15 @@ public class ApplicationDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
-        // Tutaj będą dodawane konfiguracje encji
-        // Przykład:
-        // modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
+        modelBuilder.Entity<RefreshToken>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.TokenHash).IsUnique();
+            entity.HasIndex(x => new { x.UserId, x.ExpiresAt });
+            entity.Property(x => x.TokenHash).IsRequired().HasMaxLength(128);
+            entity.Property(x => x.UserEmail).IsRequired().HasMaxLength(256);
+            entity.Property(x => x.UserDisplayName).IsRequired().HasMaxLength(200);
+            entity.Property(x => x.ReplacedByTokenHash).HasMaxLength(128);
+        });
     }
 }
