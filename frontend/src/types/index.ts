@@ -1,15 +1,56 @@
-// Types for API responses
-export interface ApiResponse<T> {
-  success: boolean;
-  message: string;
-  data?: T;
-  errors?: Record<string, string[]>;
-}
+/**
+ * TYPES INDEX - Central export point for all types
+ * 
+ * Usage:
+ * import { User, LoginRequest, ApiResponse } from '@/types';
+ */
 
-// Add your domain types here
-// Example:
-// export interface Product {
-//   id: number;
-//   name: string;
-//   price: number;
-// }
+// Auth types
+export type {
+  LoginRequest,
+  RegisterRequest,
+  RefreshTokenRequest,
+  LogoutRequest,
+  VerifyTokenRequest,
+  JwtTokens,
+  AuthUser,
+  LoginResponse,
+  RegisterResponse,
+  MeResponse,
+  VerifyTokenResponse,
+  LogoutResponse,
+  ErrorDetail,
+  ApiErrorResponse,
+  AuthState,
+  AuthContextType,
+} from './auth';
+
+// User types
+export type {
+  UserDto,
+  CreateUserRequest,
+  UpdateUserRequest,
+  DeleteUserRequest,
+  GetUserResponse,
+  GetAllUsersResponse,
+  CreateUserResponse,
+  UpdateUserResponse,
+  DeleteUserResponse,
+  PaginatedResponse,
+  UserListState,
+  UserFormState,
+} from './user/index';
+
+// API types
+export type {
+  ApiResponse,
+  ApiError,
+  AsyncRequest,
+  PaginatedRequest,
+  ValidationRule,
+  ValidationRules,
+  FormErrors,
+  AxiosErrorResponse,
+} from './api';
+
+export { HttpStatusCode } from './api';

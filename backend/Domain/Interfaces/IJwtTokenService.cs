@@ -19,6 +19,11 @@ namespace Domain.Interfaces
         Task<ClaimsPrincipal?> ValidateTokenAsync(string token);
 
         /// <summary>
+        /// Exchange a valid refresh token for a new access/refresh pair.
+        /// </summary>
+        Task<JwtTokens?> RefreshTokensAsync(string refreshToken);
+
+        /// <summary>
         /// Revoke a refresh token (add to blacklist)
         /// </summary>
         Task RevokeTokenAsync(string refreshToken);
