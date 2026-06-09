@@ -87,7 +87,7 @@ namespace API.Controllers
                 }
 
                 // Register user
-                var user = await _authService.RegisterAsync(dto.Email, "password", dto.FirstName);
+                var user = await _authService.RegisterAsync(dto.Email, dto.Password, dto.FirstName);
                 if (user == null)
                 {
                     _logger.LogError("❌ User registration failed for email: {Email}", dto.Email);
@@ -131,10 +131,15 @@ namespace API.Controllers
                     return Unauthorized(ApiResponse<object>.Error(401, "Refresh token has been revoked", null));
                 }
 
-                // TODO: Verify refresh token in database and get associated user
-                // For now, returning error as this requires DB integration
-                _logger.LogError("❌ Refresh token verification not implemented");
-                return Unauthorized(ApiResponse<object>.Error(401, "Invalid refresh token", null));
+                var tokens = await _jwtTokenService.RefreshTokensAsync(request.RefreshToken);
+                if (tokens == null)
+                {
+                    _logger.LogWarning("⚠️ Refresh token validation failed");
+                    return Unauthorized(ApiResponse<object>.Error(401, "Invalid or expired refresh token", null));
+                }
+
+                _logger.LogInformation("✓ Refresh token rotated successfully");
+                return Ok(ApiResponse<JwtTokens>.Success(tokens, "Token refreshed", 200));
             }
             catch (Exception ex)
             {

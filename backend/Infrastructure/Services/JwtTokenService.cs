@@ -1,4 +1,5 @@
 ﻿using Domain.Entities;
+using Domain.Enums;
 using Domain.Interfaces;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -19,9 +20,19 @@ namespace Infrastructure.Services
     /// </summary>
     public class JwtTokenService : IJwtTokenService
     {
+        private sealed record RefreshTokenState(
+            Guid UserId,
+            string Email,
+            string DisplayName,
+            UserRole Role,
+            bool IsEmailConfirmed,
+            DateTime ExpiresAt);
+
         private readonly JwtSettings _jwtSettings;
         private readonly ILogger<JwtTokenService> _logger;
         private static readonly HashSet<string> RevokedTokens = new();
+        private static readonly Dictionary<string, RefreshTokenState> ActiveRefreshTokens = new();
+        private static readonly object RefreshTokenLock = new();
         private const int AccessTokenExpirationMinutes = 15;
         private const int RefreshTokenExpirationDays = 7;
 
@@ -67,6 +78,18 @@ namespace Infrastructure.Services
 
                 // Generate Refresh Token (long-lived, random string)
                 var refreshToken = GenerateRefreshToken();
+                var refreshExpiration = DateTime.UtcNow.AddDays(RefreshTokenExpirationDays);
+
+                lock (RefreshTokenLock)
+                {
+                    ActiveRefreshTokens[refreshToken] = new RefreshTokenState(
+                        user.Id,
+                        user.Email,
+                        user.DisplayName,
+                        user.Role,
+                        user.IsEmailConfirmed,
+                        refreshExpiration);
+                }
 
                 _logger.LogInformation(
                     "✓ Generated tokens for user {UserId} ({Email}). Access token expires at {ExpiresAt}",
@@ -125,7 +148,12 @@ namespace Infrastructure.Services
         /// </summary>
         public async Task RevokeTokenAsync(string refreshToken)
         {
-            RevokedTokens.Add(refreshToken);
+            lock (RefreshTokenLock)
+            {
+                RevokedTokens.Add(refreshToken);
+                ActiveRefreshTokens.Remove(refreshToken);
+            }
+
             _logger.LogInformation("🔐 Refresh token revoked");
             await Task.CompletedTask;
         }
@@ -135,7 +163,53 @@ namespace Infrastructure.Services
         /// </summary>
         public async Task<bool> IsTokenRevokedAsync(string refreshToken)
         {
-            return await Task.FromResult(RevokedTokens.Contains(refreshToken));
+            bool isRevoked;
+            lock (RefreshTokenLock)
+            {
+                isRevoked = RevokedTokens.Contains(refreshToken);
+            }
+
+            return await Task.FromResult(isRevoked);
+        }
+
+        /// <summary>
+        /// Validate refresh token and rotate token pair.
+        /// </summary>
+        public async Task<JwtTokens?> RefreshTokensAsync(string refreshToken)
+        {
+            RefreshTokenState? tokenState;
+
+            lock (RefreshTokenLock)
+            {
+                if (RevokedTokens.Contains(refreshToken) || !ActiveRefreshTokens.TryGetValue(refreshToken, out tokenState))
+                {
+                    return null;
+                }
+
+                if (tokenState.ExpiresAt <= DateTime.UtcNow)
+                {
+                    ActiveRefreshTokens.Remove(refreshToken);
+                    RevokedTokens.Add(refreshToken);
+                    return null;
+                }
+
+                ActiveRefreshTokens.Remove(refreshToken);
+                RevokedTokens.Add(refreshToken);
+            }
+
+            var user = new User
+            {
+                Id = tokenState.UserId,
+                Email = tokenState.Email,
+                DisplayName = tokenState.DisplayName,
+                Role = tokenState.Role,
+                IsEmailConfirmed = tokenState.IsEmailConfirmed,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow,
+                PasswordHash = string.Empty
+            };
+
+            return await GenerateTokensAsync(user);
         }
 
         /// <summary>

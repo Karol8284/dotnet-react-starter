@@ -1,6 +1,5 @@
 using API.Filters;
 using API.Middleware;
-using Application.Services;
 using Domain.Interfaces;
 using FluentValidation.AspNetCore;
 using Infrastructure.Data;
@@ -41,14 +40,16 @@ try
             config.DisableDataAnnotationsValidation = false;
         });
     builder.Services.AddOpenApi();
+    builder.Services.AddHealthChecks();
 
     // Configure DbContext
-    var connectionString = builder.Configuration["DefaultConne  ction"]
+    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
         ?? builder.Configuration["DbConnectionString"]
         ?? throw new InvalidOperationException("Connection string not found");
 
     builder.Services.AddDbContext<ApplicationDbContext>(options =>
-        options.UseNpgsql(connectionString));
+        options.UseNpgsql(connectionString, npgsql =>
+            npgsql.MigrationsAssembly(typeof(ApplicationDbContext).Assembly.FullName)));
 
     // Add Swagger
     builder.Services.AddSwaggerGen();
@@ -83,16 +84,21 @@ try
     // Register services
     builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
     builder.Services.AddScoped<ValidationFilterAttribute>();
+    builder.Services.AddScoped<IAuthService, AuthService>();
 
-    // Register services
-    builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
-    builder.Services.AddScoped<IAuthService, MockAuthService>(); // Mock for testing (replace with real AuthService later)
+    var allowedOrigins = builder.Configuration
+        .GetSection("Cors:AllowedOrigins")
+        .Get<string[]>()
+        ?? [];
+
+    if (allowedOrigins.Length == 0)
+        throw new InvalidOperationException("CORS allowed origins are not configured");
 
     // Configure CORS
     builder.Services.AddCors(options =>
     {
         options.AddPolicy("AllowWasm", policy =>
-            policy.WithOrigins("https://localhost:7234")
+            policy.WithOrigins(allowedOrigins)
                 .AllowAnyMethod()
                 .AllowAnyHeader());
     });
@@ -108,8 +114,8 @@ try
         {
             var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-            // Create database schema from models
-            await dbContext.Database.EnsureCreatedAsync();
+            // Apply pending Entity Framework migrations
+            await dbContext.Database.MigrateAsync();
 
             Log.Information("✓ Database initialized successfully!");
         }
@@ -131,12 +137,14 @@ try
     }
 
     app.UseHttpsRedirection();
+    app.UseCors("AllowWasm");
 
     // JWT Authentication & Authorization
     app.UseAuthentication();
     app.UseAuthorization();
 
     app.MapControllers();
+    app.MapHealthChecks("/health");
 
     Log.Information("🌐 Application listening on configured ports");
     await app.RunAsync();

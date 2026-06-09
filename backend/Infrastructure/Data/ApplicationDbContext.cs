@@ -1,3 +1,4 @@
+using Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace Infrastructure.Data;
@@ -12,6 +13,8 @@ public class ApplicationDbContext : DbContext
     {
     }
 
+    public DbSet<User> Users => Set<User>();
+
     /// <summary>
     /// Konfiguracja modeli i relacji między encjami
     /// </summary>
@@ -19,8 +22,36 @@ public class ApplicationDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
-        // Tutaj będą dodawane konfiguracje encji
-        // Przykład:
-        // modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
+        modelBuilder.Entity<User>(entity =>
+        {
+            entity.ToTable("Users");
+            entity.HasKey(u => u.Id);
+
+            entity.Property(u => u.Email)
+                .IsRequired()
+                .HasMaxLength(256);
+
+            entity.HasIndex(u => u.Email)
+                .IsUnique();
+
+            entity.Property(u => u.PasswordHash)
+                .IsRequired()
+                .HasMaxLength(512);
+
+            entity.Property(u => u.DisplayName)
+                .IsRequired()
+                .HasMaxLength(150);
+
+            entity.Property(u => u.AvatarUrl)
+                .HasMaxLength(1024);
+
+            entity.Property(u => u.Role)
+                .HasConversion<string>()
+                .HasMaxLength(32)
+                .IsRequired();
+
+            entity.Property(u => u.CreatedAt)
+                .IsRequired();
+        });
     }
 }

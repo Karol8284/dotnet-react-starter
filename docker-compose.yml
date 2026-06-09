@@ -1,6 +1,25 @@
 version: '3.9'
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: dotnet-react-postgres
+    environment:
+      - POSTGRES_DB=dotnet_react_starter
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - dotnet-react-network
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d dotnet_react_starter" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   # Backend API (.NET)
   backend:
     build:
@@ -12,6 +31,10 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:5000
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=dotnet_react_starter;Username=postgres;Password=postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - dotnet-react-network
     healthcheck:
@@ -37,3 +60,6 @@ services:
 networks:
   dotnet-react-network:
     driver: bridge
+
+volumes:
+  postgres_data:

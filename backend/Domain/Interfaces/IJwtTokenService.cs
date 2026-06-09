@@ -27,5 +27,11 @@ namespace Domain.Interfaces
         /// Check if a refresh token is revoked
         /// </summary>
         Task<bool> IsTokenRevokedAsync(string refreshToken);
+
+        /// <summary>
+        /// Validate refresh token and issue a rotated token pair.
+        /// Returns null when token is invalid, revoked, or expired.
+        /// </summary>
+        Task<JwtTokens?> RefreshTokensAsync(string refreshToken);
     }
 }
