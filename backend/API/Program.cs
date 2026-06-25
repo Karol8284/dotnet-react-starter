@@ -64,8 +64,18 @@ try
     }
 
     // Configure JWT Settings
-    builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("Jwt"));
+    builder.Services.AddOptions<JwtSettings>()
+        .Bind(builder.Configuration.GetSection("Jwt"))
+        .Validate(settings => !string.IsNullOrWhiteSpace(settings.Secret), "JWT Secret is required.")
+        .Validate(settings => settings.Secret.Length >= 32, "JWT Secret must be at least 32 characters long.")
+        .Validate(settings => !string.IsNullOrWhiteSpace(settings.Issuer), "JWT Issuer is required.")
+        .Validate(settings => !string.IsNullOrWhiteSpace(settings.Audience), "JWT Audience is required.")
+        .Validate(settings => settings.AccessTokenExpiresInMinutes > 0, "AccessTokenExpiresInMinutes must be greater than 0.")
+        .Validate(settings => settings.RefreshTokenExpiresInDays > 0, "RefreshTokenExpiresInDays must be greater than 0.")
+        .ValidateOnStart(); // Validate on application startup
 
+
+    builder.Services.AddHttpContextAccessor();
     // Configure JWT Authentication
     builder.Services.AddAuthentication(options =>
     {
@@ -77,20 +87,25 @@ try
     builder.Services.AddSingleton<IConfigureNamedOptions<JwtBearerOptions>, JwtBearerOptionsSetup>();
 
     // Register services
-    builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
     builder.Services.AddScoped<ValidationFilterAttribute>();
-
-    // Register services
     builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
     builder.Services.AddScoped<IAuthService, MockAuthService>(); // Mock for testing (replace with real AuthService later)
+   
+
 
     // Configure CORS
     builder.Services.AddCors(options =>
     {
-        options.AddPolicy("AllowWasm", policy =>
-            policy.WithOrigins("https://localhost:7234")
+        options.AddPolicy("ReactApp", policy =>
+            policy.WithOrigins(
+                "http://localhost:5173",// Vite dev server
+                "https://localhost:5173",
+                "http://localhost:3000" // Create React App / alternatywny port
+                )
                 .AllowAnyMethod()
-                .AllowAnyHeader());
+                .AllowAnyHeader()
+                .AllowCredentials() // Potrzebne gdy używasz HttpOnly cookies w przyszłości
+                );
     });
 
     var app = builder.Build();
@@ -128,6 +143,8 @@ try
     app.UseHttpsRedirection();
 
     // JWT Authentication & Authorization
+    app.UseCors("ReactApp");
+
     app.UseAuthentication();
     app.UseAuthorization();
 

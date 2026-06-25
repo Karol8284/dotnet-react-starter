@@ -1,4 +1,5 @@
 using Domain.Entities;
+using Domain.Entities.JWT;
 using Microsoft.EntityFrameworkCore;
 
 namespace Infrastructure.Data;

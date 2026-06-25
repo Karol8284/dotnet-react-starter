@@ -1,6 +1,7 @@
 using API.Controllers;
 using Application.DTOs.Auth;
 using Domain.Entities;
+using Domain.Entities.JWT;
 using Domain.Enums;
 using Domain.Interfaces;
 using Microsoft.AspNetCore.Http;

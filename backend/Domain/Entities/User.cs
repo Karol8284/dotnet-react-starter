@@ -38,14 +38,4 @@ namespace Domain.Entities
         public DateTime CreatedAt { get; set; }
 
     }
-
-    /// <summary>
-    /// DTO for JWT token pair (access token + refresh token)
-    /// </summary>
-    public class JwtTokens
-    {
-        public string AccessToken { get; set; } = string.Empty;
-        public string RefreshToken { get; set; } = string.Empty;
-        public long ExpiresIn { get; set; }
-    }
 }
