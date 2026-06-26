@@ -61,12 +61,12 @@ public class AuthControllerTests
     [Fact]
     public async Task Register_Returns_created_when_registration_succeeds()
     {
-        var dto = new RegisterUserDto { Email = "new@example.com", FirstName = "New", LastName = "User", CreatedAt = DateTime.UtcNow };
+        var dto = new RegisterUserDto { Email = "new@example.com", Password = "password123", FirstName = "New", LastName = "User", CreatedAt = DateTime.UtcNow };
         var user = new User { Id = Guid.NewGuid(), Email = dto.Email, DisplayName = "New User", Role = UserRole.User };
         var tokens = new JwtTokens { AccessToken = "access-token", RefreshToken = "refresh-token", ExpiresIn = 900 };
 
         _authServiceMock.Setup(x => x.UserExistsAsync(dto.Email)).ReturnsAsync(false);
-        _authServiceMock.Setup(x => x.RegisterAsync(dto.Email, It.IsAny<string>(), dto.FirstName)).ReturnsAsync(user);
+        _authServiceMock.Setup(x => x.RegisterAsync(dto.Email, dto.Password, "New User")).ReturnsAsync(user);
         _jwtTokenServiceMock.Setup(x => x.GenerateTokensAsync(user)).ReturnsAsync(tokens);
 
         var actionResult = await _controller.Register(dto);
@@ -82,7 +82,7 @@ public class AuthControllerTests
     [Fact]
     public async Task Register_Returns_bad_request_when_user_already_exists()
     {
-        var dto = new RegisterUserDto { Email = "test@example.com", FirstName = "New", LastName = "User", CreatedAt = DateTime.UtcNow };
+        var dto = new RegisterUserDto { Email = "test@example.com", Password = "password123", FirstName = "New", LastName = "User", CreatedAt = DateTime.UtcNow };
 
         _authServiceMock.Setup(x => x.UserExistsAsync(dto.Email)).ReturnsAsync(true);
 

@@ -1,6 +1,7 @@
 using API.Filters;
 using API.Middleware;
 using API.Configurations;
+using Application.Interfaces;
 using Application.Services;
 using Domain.Interfaces;
 using FluentValidation;
@@ -8,10 +9,12 @@ using FluentValidation.AspNetCore;
 using Infrastructure.Data;
 using Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Serilog;
 using Shared.Settings;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -89,8 +92,20 @@ try
     // Register services
     builder.Services.AddScoped<ValidationFilterAttribute>();
     builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
-    builder.Services.AddScoped<IAuthService, MockAuthService>(); // Mock for testing (replace with real AuthService later)
-   
+    builder.Services.AddScoped<IAuthService, DatabaseAuthService>();
+    builder.Services.AddScoped<Application.Interfaces.IUserService, DatabaseUserService>();
+
+    builder.Services.AddRateLimiter(options =>
+    {
+        options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+        options.AddFixedWindowLimiter("AuthPolicy", limiterOptions =>
+        {
+            limiterOptions.PermitLimit = 5;
+            limiterOptions.Window = TimeSpan.FromMinutes(1);
+            limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+            limiterOptions.QueueLimit = 0;
+        });
+    });
 
 
     // Configure CORS
@@ -144,6 +159,8 @@ try
 
     // JWT Authentication & Authorization
     app.UseCors("ReactApp");
+
+    app.UseRateLimiter();
 
     app.UseAuthentication();
     app.UseAuthorization();

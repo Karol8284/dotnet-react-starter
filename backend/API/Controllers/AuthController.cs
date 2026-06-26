@@ -4,6 +4,7 @@ using Domain.Entities.JWT;
 using Domain.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Shared.Responses;
 using System.ComponentModel.DataAnnotations;
 using System.IdentityModel.Tokens.Jwt;
@@ -35,6 +36,7 @@ namespace API.Controllers
         /// </summary>
         [HttpPost("login")]
         [AllowAnonymous]
+        [EnableRateLimiting("AuthPolicy")]
         public async Task<IActionResult> Login([FromBody] LoginUserDto dto)
         {
             if (!ModelState.IsValid)
@@ -72,6 +74,7 @@ namespace API.Controllers
         /// </summary>
         [HttpPost("register")]
         [AllowAnonymous]
+        [EnableRateLimiting("AuthPolicy")]
         public async Task<IActionResult> Register([FromBody] RegisterUserDto dto)
         {
             if (!ModelState.IsValid)
@@ -90,7 +93,8 @@ namespace API.Controllers
                 }
 
                 // Register user
-                var user = await _authService.RegisterAsync(dto.Email, "password", dto.FirstName);
+                var displayName = $"{dto.FirstName} {dto.LastName}".Trim();
+                var user = await _authService.RegisterAsync(dto.Email, dto.Password, displayName);
                 if (user == null)
                 {
                     _logger.LogError("❌ User registration failed for email: {Email}", dto.Email);
