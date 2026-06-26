@@ -27,7 +27,8 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 ["Jwt:Issuer"] = "test-issuer",
                 ["Jwt:Audience"] = "test-audience",
                 ["Jwt:AccessTokenExpiresInMinutes"] = "15",
-                ["Jwt:RefreshTokenExpiresInDays"] = "7"
+                ["Jwt:RefreshTokenExpiresInDays"] = "7",
+                ["Jwt:RefreshTokenCookieSecurePolicy"] = "SameAsRequest"
             };
 
             configBuilder.AddInMemoryCollection(settings);

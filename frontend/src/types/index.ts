@@ -9,8 +9,6 @@
 export type {
   LoginRequest,
   RegisterRequest,
-  RefreshTokenRequest,
-  LogoutRequest,
   VerifyTokenRequest,
   JwtTokens,
   AuthUser,

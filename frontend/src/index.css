@@ -287,6 +287,35 @@ ul {
   background: rgba(6, 95, 70, 0.18);
 }
 
+.form__warning {
+  margin: 0;
+  color: #fde68a;
+  padding: 0.9rem 1rem;
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  border-radius: var(--radius-md);
+  background: rgba(120, 53, 15, 0.22);
+}
+
+.global-notice {
+  width: min(1200px, calc(100% - 2rem));
+  margin: 1rem auto 0;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-md);
+}
+
+.global-notice--warning {
+  border-color: rgba(245, 158, 11, 0.32);
+  background: rgba(120, 53, 15, 0.22);
+  color: #fde68a;
+}
+
 .stack {
   display: grid;
   gap: 1rem;
@@ -461,6 +490,11 @@ ul {
   .toolbar {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .global-notice {
+    flex-direction: column;
+    align-items: stretch;
   }
 }
 

@@ -20,7 +20,7 @@ describe('Profile page', () => {
         displayName: 'Old Name',
         role: 'User',
       },
-      tokens: { accessToken: 'access', refreshToken: 'refresh', expiresIn: 900 },
+      tokens: { accessToken: 'access', expiresIn: 900 },
       updateDisplayName,
     } as any);
 

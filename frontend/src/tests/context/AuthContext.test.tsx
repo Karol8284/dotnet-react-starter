@@ -24,7 +24,6 @@ jest.mock('../../services/api/TokenManager', () => ({
     isAccessTokenExpired: jest.fn(),
     setSession: jest.fn(),
     clearSession: jest.fn(),
-    getRefreshToken: jest.fn(),
   },
 }));
 
@@ -34,7 +33,6 @@ const mockedTokenManager = tokenManager as jest.Mocked<typeof tokenManager>;
 
 const session: JwtTokens = {
   accessToken: 'access-token',
-  refreshToken: 'refresh-token',
   expiresIn: 900,
 };
 
@@ -103,7 +101,6 @@ describe('AuthContext', () => {
     };
     const refreshedTokens: JwtTokens = {
       accessToken: 'fresh-access-token',
-      refreshToken: 'fresh-refresh-token',
       expiresIn: 900,
     };
 
@@ -132,7 +129,7 @@ describe('AuthContext', () => {
     );
 
     await waitFor(() => expect(screen.getByTestId('user')).toHaveTextContent('Refreshed User'));
-    expect(mockedAuthApi.refreshToken).toHaveBeenCalledWith({ refreshToken: 'refresh-token' });
+    expect(mockedAuthApi.refreshToken).toHaveBeenCalledWith();
     expect(mockedAuthApi.me).toHaveBeenCalledTimes(1);
     expect(mockedTokenManager.setSession).toHaveBeenCalledWith(refreshedTokens, storedUser);
   });
@@ -189,7 +186,6 @@ describe('AuthContext', () => {
   it('logs out and clears the current session', async () => {
     mockedTokenManager.getSession.mockReturnValue(session);
     mockedTokenManager.getUser.mockReturnValue(storedUser);
-    mockedTokenManager.getRefreshToken.mockReturnValue('refresh-token');
     mockedTokenManager.isAccessTokenExpired.mockReturnValue(false);
     mockedAuthApi.logout.mockResolvedValue({
       statusCode: 200,
@@ -211,7 +207,7 @@ describe('AuthContext', () => {
       await latestAuth?.logout();
     });
 
-    expect(mockedAuthApi.logout).toHaveBeenCalledWith({ refreshToken: 'refresh-token' });
+    expect(mockedAuthApi.logout).toHaveBeenCalledWith();
     await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('anonymous'));
     expect(mockedTokenManager.clearSession).toHaveBeenCalled();
   });
@@ -254,5 +250,34 @@ describe('AuthContext', () => {
       ...storedUser,
       displayName: 'Updated User',
     });
+  });
+
+  it('clears the session when refreshToken is called and the backend refresh fails', async () => {
+    mockedTokenManager.getSession.mockReturnValue(session);
+    mockedTokenManager.getUser.mockReturnValue(storedUser);
+    mockedTokenManager.isAccessTokenExpired.mockReturnValue(false);
+    mockedAuthApi.refreshToken.mockRejectedValue(new Error('Refresh failed'));
+
+    render(
+      <AuthProvider>
+        <AuthConsumer />
+      </AuthProvider>
+    );
+
+    await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('authenticated'));
+
+    let caughtErrorMessage: string | null = null;
+
+    await act(async () => {
+      try {
+        await latestAuth?.refreshToken();
+      } catch (error) {
+        caughtErrorMessage = (error as Error).message;
+      }
+    });
+
+    expect(caughtErrorMessage).toBe('Refresh failed');
+    await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('anonymous'));
+    expect(mockedTokenManager.clearSession).toHaveBeenCalled();
   });
 });

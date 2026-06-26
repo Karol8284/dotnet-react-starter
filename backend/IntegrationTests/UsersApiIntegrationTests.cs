@@ -1,5 +1,5 @@
 using Domain.Entities;
-using Domain.Entities.JWT;
+using API.Controllers;
 using Domain.Enums;
 using Infrastructure.Data;
 using Microsoft.AspNetCore.Identity;
@@ -126,12 +126,12 @@ public class UsersApiIntegrationTests
         Assert.Null(getResult.Data);
     }
 
-    private async Task<JwtTokens> LoginAsync(string email, string password)
+    private async Task<AuthTokenResponse> LoginAsync(string email, string password)
     {
         var loginResponse = await _client.PostAsJsonAsync("/api/auth/login", new { Email = email, Password = password });
         loginResponse.EnsureSuccessStatusCode();
 
-        var apiResponse = await loginResponse.Content.ReadFromJsonAsync<ApiResponse<JwtTokens>>();
+        var apiResponse = await loginResponse.Content.ReadFromJsonAsync<ApiResponse<AuthTokenResponse>>();
         Assert.NotNull(apiResponse?.Data);
         return apiResponse.Data;
     }

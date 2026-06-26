@@ -29,16 +29,6 @@ export interface RegisterRequest {
   address: string;
 }
 
-/** Refresh token request */
-export interface RefreshTokenRequest {
-  refreshToken: string;
-}
-
-/** Logout request */
-export interface LogoutRequest {
-  refreshToken: string;
-}
-
 /** Verify token request */
 export interface VerifyTokenRequest {
   token: string;
@@ -48,11 +38,11 @@ export interface VerifyTokenRequest {
 // 2️⃣ RESPONSES (Backend → Frontend)
 // ============================================
 
-/** JWT token pair - maps to JwtTokens from User.cs */
+/** Public auth token response returned by the backend. */
 export interface JwtTokens {
   accessToken: string;
-  refreshToken: string;
   expiresIn: number; // seconds (900 = 15 minutes)
+  tokenType?: string;
 }
 
 /** Current authenticated user - maps to /api/auth/me response */

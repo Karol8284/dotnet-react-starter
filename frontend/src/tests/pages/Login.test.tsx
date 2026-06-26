@@ -104,4 +104,21 @@ describe('Login page', () => {
     expect(await screen.findByText(/enter a valid email address/i)).toBeInTheDocument();
     expect(screen.getByText(/password must be at least 8 characters long/i)).toBeInTheDocument();
   });
+
+  it('shows a session-expired message when redirected back to login', async () => {
+    mockedUseAuth.mockReturnValue({
+      login: jest.fn(),
+      loading: false,
+      error: null,
+      clearError: jest.fn(),
+    } as any);
+
+    render(
+      <MemoryRouter initialEntries={[{ pathname: '/login', state: { reason: 'session-expired' } } as any]}>
+        <Login />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText(/your session expired. please sign in again/i)).toBeInTheDocument();
+  });
 });

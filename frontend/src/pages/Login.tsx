@@ -13,6 +13,7 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as { from?: Location } | null)?.from?.pathname ?? '/dashboard';
+  const reason = (location.state as { reason?: string } | null)?.reason;
   const {
     register,
     handleSubmit,
@@ -63,6 +64,8 @@ export default function Login() {
           <h2>Log in</h2>
           <p>Use the account created through the backend JWT flow.</p>
         </div>
+
+        {reason === 'session-expired' ? <p className="form__warning">Your session expired. Please sign in again.</p> : null}
 
         <form className="form" noValidate onSubmit={handleSubmit(onSubmit)}>
           <label className="field">

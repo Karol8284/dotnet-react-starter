@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Shared.Responses;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using API.Controllers;
 
 namespace IntegrationTests;
 
@@ -18,12 +19,15 @@ public class AuthApiIntegrationTests
     public AuthApiIntegrationTests()
     {
         _factory = new CustomWebApplicationFactory();
-        _client = _factory.CreateClient();
+        _client = _factory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
+        {
+            HandleCookies = true
+        });
         _client.DefaultRequestHeaders.Authorization = null;
     }
 
     [Fact]
-    public async Task Login_Returns_tokens_for_valid_credentials()
+    public async Task Login_Returns_access_token_and_sets_refresh_cookie_for_valid_credentials()
     {
         await SeedUserAsync("test@example.com", "password123", "Test User", UserRole.User);
 
@@ -31,11 +35,17 @@ public class AuthApiIntegrationTests
 
         loginResponse.EnsureSuccessStatusCode();
 
-        var apiResponse = await loginResponse.Content.ReadFromJsonAsync<ApiResponse<JwtTokens>>();
+        var apiResponse = await loginResponse.Content.ReadFromJsonAsync<ApiResponse<AuthTokenResponse>>();
         Assert.NotNull(apiResponse?.Data);
         Assert.False(string.IsNullOrWhiteSpace(apiResponse.Data.AccessToken));
-        Assert.False(string.IsNullOrWhiteSpace(apiResponse.Data.RefreshToken));
         Assert.True(apiResponse.Data.ExpiresIn > 0);
+        var setCookieHeader = loginResponse.Headers.TryGetValues("Set-Cookie", out var cookies)
+            ? string.Join(";", cookies)
+            : string.Empty;
+        Assert.Contains("drs.refreshToken=", setCookieHeader);
+        Assert.Contains("HttpOnly", setCookieHeader, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Path=/api/auth", setCookieHeader, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("SameSite=Lax", setCookieHeader, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -46,7 +56,7 @@ public class AuthApiIntegrationTests
         var loginResponse = await _client.PostAsJsonAsync("/api/auth/login", new { Email = "test@example.com", Password = "password123" });
         loginResponse.EnsureSuccessStatusCode();
 
-        var loginApiResponse = await loginResponse.Content.ReadFromJsonAsync<ApiResponse<JwtTokens>>();
+        var loginApiResponse = await loginResponse.Content.ReadFromJsonAsync<ApiResponse<AuthTokenResponse>>();
         Assert.NotNull(loginApiResponse?.Data);
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", loginApiResponse.Data.AccessToken);
@@ -66,15 +76,15 @@ public class AuthApiIntegrationTests
         var loginResponse = await _client.PostAsJsonAsync("/api/auth/login", new { Email = "test@example.com", Password = "password123" });
         loginResponse.EnsureSuccessStatusCode();
 
-        var loginApiResponse = await loginResponse.Content.ReadFromJsonAsync<ApiResponse<JwtTokens>>();
+        var loginApiResponse = await loginResponse.Content.ReadFromJsonAsync<ApiResponse<AuthTokenResponse>>();
         Assert.NotNull(loginApiResponse?.Data);
 
-        var refreshResponse = await _client.PostAsJsonAsync("/api/auth/refresh-token", new { RefreshToken = loginApiResponse.Data.RefreshToken });
+        var refreshResponse = await _client.PostAsync("/api/auth/refresh-token", null);
         refreshResponse.EnsureSuccessStatusCode();
 
-        var refreshApiResponse = await refreshResponse.Content.ReadFromJsonAsync<ApiResponse<JwtTokens>>();
+        var refreshApiResponse = await refreshResponse.Content.ReadFromJsonAsync<ApiResponse<AuthTokenResponse>>();
         Assert.NotNull(refreshApiResponse?.Data);
-        Assert.NotEqual(loginApiResponse.Data.RefreshToken, refreshApiResponse.Data.RefreshToken);
+        Assert.NotEqual(loginApiResponse.Data.AccessToken, refreshApiResponse.Data.AccessToken);
     }
 
     [Fact]
@@ -111,10 +121,13 @@ public class AuthApiIntegrationTests
     [Fact]
     public async Task RefreshToken_Returns_unauthorized_when_refresh_token_is_invalid()
     {
-        var response = await _client.PostAsJsonAsync("/api/auth/refresh-token", new
+        using var invalidCookieClient = _factory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
         {
-            RefreshToken = "invalid-refresh-token"
+            HandleCookies = false
         });
+        invalidCookieClient.DefaultRequestHeaders.Add("Cookie", "drs.refreshToken=invalid-refresh-token");
+
+        var response = await invalidCookieClient.PostAsync("/api/auth/refresh-token", null);
 
         Assert.Equal(System.Net.HttpStatusCode.Unauthorized, response.StatusCode);
     }
@@ -132,24 +145,27 @@ public class AuthApiIntegrationTests
 
         loginResponse.EnsureSuccessStatusCode();
 
-        var loginApiResponse = await loginResponse.Content.ReadFromJsonAsync<ApiResponse<JwtTokens>>();
+        var loginApiResponse = await loginResponse.Content.ReadFromJsonAsync<ApiResponse<AuthTokenResponse>>();
         Assert.NotNull(loginApiResponse?.Data);
 
-        var oldRefreshToken = loginApiResponse.Data.RefreshToken;
+        var initialCookie = GetRefreshTokenCookie(loginResponse);
 
-        var firstRefreshResponse = await _client.PostAsJsonAsync("/api/auth/refresh-token", new
-        {
-            RefreshToken = oldRefreshToken
-        });
+        var firstRefreshResponse = await _client.PostAsync("/api/auth/refresh-token", null);
 
         firstRefreshResponse.EnsureSuccessStatusCode();
 
-        var secondRefreshResponse = await _client.PostAsJsonAsync("/api/auth/refresh-token", new
+        var rotatedCookie = GetRefreshTokenCookie(firstRefreshResponse);
+
+        using var replayClient = _factory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
         {
-            RefreshToken = oldRefreshToken
+            HandleCookies = false
         });
+        replayClient.DefaultRequestHeaders.Add("Cookie", initialCookie);
+
+        var secondRefreshResponse = await replayClient.PostAsync("/api/auth/refresh-token", null);
 
         Assert.Equal(System.Net.HttpStatusCode.Unauthorized, secondRefreshResponse.StatusCode);
+        Assert.NotEqual(initialCookie, rotatedCookie);
     }
 
     [Fact]
@@ -168,7 +184,7 @@ public class AuthApiIntegrationTests
 
         Assert.Equal(System.Net.HttpStatusCode.Created, registerResponse.StatusCode);
 
-        var registerApiResponse = await registerResponse.Content.ReadFromJsonAsync<ApiResponse<JwtTokens>>();
+        var registerApiResponse = await registerResponse.Content.ReadFromJsonAsync<ApiResponse<AuthTokenResponse>>();
         Assert.NotNull(registerApiResponse?.Data);
         Assert.False(string.IsNullOrWhiteSpace(registerApiResponse.Data.AccessToken));
 
@@ -211,36 +227,27 @@ public class AuthApiIntegrationTests
     }
 
     [Fact]
-    public async Task RefreshToken_Returns_unauthorized_after_logout_revokes_token()
+    public async Task RefreshToken_Returns_bad_request_after_logout_clears_refresh_cookie()
     {
         await SeedUserAsync("logout@example.com", "password123", "Logout User", UserRole.User);
 
         var tokens = await LoginAsync("logout@example.com", "password123");
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", tokens.AccessToken);
 
-        var logoutResponse = await _client.PostAsJsonAsync("/api/auth/logout", new
-        {
-            tokens.RefreshToken
-        });
+        var logoutResponse = await _client.PostAsync("/api/auth/logout", null);
 
         logoutResponse.EnsureSuccessStatusCode();
         _client.DefaultRequestHeaders.Authorization = null;
 
-        var refreshResponse = await _client.PostAsJsonAsync("/api/auth/refresh-token", new
-        {
-            tokens.RefreshToken
-        });
+        var refreshResponse = await _client.PostAsync("/api/auth/refresh-token", null);
 
-        Assert.Equal(System.Net.HttpStatusCode.Unauthorized, refreshResponse.StatusCode);
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, refreshResponse.StatusCode);
     }
 
     [Fact]
     public async Task Logout_Returns_unauthorized_when_access_token_is_missing()
     {
-        var response = await _client.PostAsJsonAsync("/api/auth/logout", new
-        {
-            RefreshToken = "any-refresh-token"
-        });
+        var response = await _client.PostAsync("/api/auth/logout", null);
 
         Assert.Equal(System.Net.HttpStatusCode.Unauthorized, response.StatusCode);
     }
@@ -261,14 +268,22 @@ public class AuthApiIntegrationTests
         Assert.Equal(System.Net.HttpStatusCode.TooManyRequests, lastStatusCode);
     }
 
-    private async Task<JwtTokens> LoginAsync(string email, string password)
+    private async Task<AuthTokenResponse> LoginAsync(string email, string password)
     {
         var loginResponse = await _client.PostAsJsonAsync("/api/auth/login", new { Email = email, Password = password });
         loginResponse.EnsureSuccessStatusCode();
 
-        var apiResponse = await loginResponse.Content.ReadFromJsonAsync<ApiResponse<JwtTokens>>();
+        var apiResponse = await loginResponse.Content.ReadFromJsonAsync<ApiResponse<AuthTokenResponse>>();
         Assert.NotNull(apiResponse?.Data);
         return apiResponse.Data;
+    }
+
+    private static string GetRefreshTokenCookie(HttpResponseMessage response)
+    {
+        Assert.True(response.Headers.TryGetValues("Set-Cookie", out var cookies));
+        var refreshTokenCookie = cookies.FirstOrDefault(value => value.Contains("drs.refreshToken="));
+        Assert.False(string.IsNullOrWhiteSpace(refreshTokenCookie));
+        return refreshTokenCookie!;
     }
 
     private async Task SeedUserAsync(string email, string password, string displayName, UserRole role)

@@ -46,12 +46,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       try {
-        const refreshed = await authApi.refreshToken({ refreshToken: session.refreshToken });
+        const refreshed = await authApi.refreshToken();
         if (!refreshed.data) {
           throw new Error('Refresh response missing token payload');
         }
 
-        tokenManager.setSession(refreshed.data, storedUser ?? undefined);
+        tokenManager.setSession(refreshed.data, storedUser ?? null);
 
         const currentUserResponse = await authApi.me();
         if (isMounted) {
@@ -100,7 +100,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error('Current user payload missing');
     }
 
-    tokenManager.setSession(tokenManager.getSession() as JwtTokens, response.data);
+    const currentTokens = tokenManager.getSession();
+    if (!currentTokens) {
+      throw new Error('Session token missing');
+    }
+
+    tokenManager.setSession(currentTokens, response.data);
     return response.data;
   };
 
@@ -151,34 +156,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const refreshToken = async () => {
-    const refreshTokenValue = tokenManager.getRefreshToken();
-    if (!refreshTokenValue) {
-      throw new Error('Refresh token not available');
+    const currentTokens = tokenManager.getSession();
+    if (!currentTokens) {
+      clearSession();
+      throw new Error('Access token not available');
     }
 
-    const response = await authApi.refreshToken({ refreshToken: refreshTokenValue });
-    if (!response.data) {
-      throw new Error('Refresh response missing tokens');
-    }
+    try {
+      const response = await authApi.refreshToken();
+      if (!response.data) {
+        throw new Error('Refresh response missing tokens');
+      }
 
-    const nextUser = tokenManager.getUser();
-    tokenManager.setSession(response.data, nextUser ?? undefined);
-    setState((current) => ({
-      ...current,
-      isAuthenticated: Boolean(nextUser),
-      tokens: response.data,
-      user: nextUser,
-      loading: false,
-      error: null,
-    }));
+      const nextUser = tokenManager.getUser();
+      tokenManager.setSession(response.data, nextUser ?? null);
+      setState((current) => ({
+        ...current,
+        isAuthenticated: Boolean(nextUser),
+        tokens: response.data,
+        user: nextUser,
+        loading: false,
+        error: null,
+      }));
+    } catch (error) {
+      clearSession();
+      setState((current) => ({
+        ...current,
+        loading: false,
+        error: error instanceof Error ? error.message : 'Session refresh failed',
+      }));
+      throw error;
+    }
   };
 
   const logout = async () => {
-    const refreshTokenValue = tokenManager.getRefreshToken();
-
     try {
-      if (refreshTokenValue) {
-        await authApi.logout({ refreshToken: refreshTokenValue });
+      if (tokenManager.getSession()) {
+        await authApi.logout();
       }
     } finally {
       clearSession();

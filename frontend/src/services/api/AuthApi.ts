@@ -3,9 +3,7 @@ import type {
   AuthUser,
   JwtTokens,
   LoginRequest,
-  LogoutRequest,
   MeResponse,
-  RefreshTokenRequest,
   RegisterRequest,
   VerifyTokenRequest,
   VerifyTokenResponse,
@@ -27,14 +25,14 @@ export class AuthApi {
     });
   }
 
-  refreshToken(request: RefreshTokenRequest): Promise<ApiResponse<JwtTokens>> {
-    return this.client.post<ApiResponse<JwtTokens>, RefreshTokenRequest>('/auth/refresh-token', request, {
+  refreshToken(): Promise<ApiResponse<JwtTokens>> {
+    return this.client.post<ApiResponse<JwtTokens>, undefined>('/auth/refresh-token', undefined, {
       skipAuth: true,
     });
   }
 
-  logout(request: LogoutRequest): Promise<ApiResponse<null>> {
-    return this.client.post<ApiResponse<null>, LogoutRequest>('/auth/logout', request);
+  logout(): Promise<ApiResponse<null>> {
+    return this.client.post<ApiResponse<null>, undefined>('/auth/logout');
   }
 
   me(): Promise<ApiResponse<AuthUser>> {

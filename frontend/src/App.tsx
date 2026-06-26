@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { AppNoticeCenter } from './components/UI/AppNoticeCenter';
 import { Navbar } from './components/UI/Navbar';
 import { ProtectedRoute } from './components/UI/ProtectedRoute';
 import AdminPanel from './pages/AdminPanel';
@@ -17,6 +18,7 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <div className="app-shell">
+          <AppNoticeCenter />
           <Navbar />
           <main className="app-shell__main">
             <Routes>
