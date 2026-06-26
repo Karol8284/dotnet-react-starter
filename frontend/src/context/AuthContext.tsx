@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import type { AuthContextType, AuthState, AuthUser, JwtTokens, RegisterRequest } from '../types';
 import { authApi } from '../services/api';
+import { userApi } from '../services/api';
 import { tokenManager } from '../services/api/TokenManager';
 
 const initialState: AuthState = {
@@ -184,6 +185,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const updateDisplayName = async (displayName: string) => {
+    const currentUser = state.user;
+    const currentTokens = tokenManager.getSession();
+
+    if (!currentUser || !currentTokens) {
+      throw new Error('Authenticated user is required');
+    }
+
+    await userApi.updateDisplayName(currentUser.id, displayName);
+
+    const nextUser: AuthUser = {
+      ...currentUser,
+      displayName,
+    };
+
+    tokenManager.setSession(currentTokens, nextUser);
+    setState((current) => ({
+      ...current,
+      user: nextUser,
+      tokens: currentTokens,
+      error: null,
+    }));
+  };
+
   const clearError = () => setState((current) => ({ ...current, error: null }));
 
   const value: AuthContextType = {
@@ -192,6 +217,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     register,
     logout,
     refreshToken,
+    updateDisplayName,
     clearError,
   };
 

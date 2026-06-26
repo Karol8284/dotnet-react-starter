@@ -4,6 +4,7 @@ import { useAuth } from '../../hooks/useAuth';
 export function Navbar() {
   const { isAuthenticated, user, logout } = useAuth();
   const navigate = useNavigate();
+  const isAdmin = user?.role === 'Admin';
 
   const handleLogout = async () => {
     await logout();
@@ -22,15 +23,19 @@ export function Navbar() {
 
       <nav className="navbar__links">
         <NavLink to="/">Home</NavLink>
-        <NavLink to="/dashboard">Dashboard</NavLink>
-        <NavLink to="/profile">Profile</NavLink>
-        <NavLink to="/users">Users</NavLink>
+        {isAuthenticated ? <NavLink to="/dashboard">Dashboard</NavLink> : null}
+        {isAuthenticated ? <NavLink to="/profile">Profile</NavLink> : null}
+        {isAuthenticated ? <NavLink to="/users">Users</NavLink> : null}
+        {isAdmin ? <NavLink to="/admin">Admin</NavLink> : null}
       </nav>
 
       <div className="navbar__actions">
         {isAuthenticated && user ? (
           <>
-            <span className="navbar__user">{user.displayName}</span>
+            <span className="navbar__user">
+              {user.displayName}
+              <span className={`role-badge ${isAdmin ? 'role-badge--admin' : ''}`}>{user.role}</span>
+            </span>
             <button type="button" className="button button--ghost" onClick={handleLogout}>
               Logout
             </button>

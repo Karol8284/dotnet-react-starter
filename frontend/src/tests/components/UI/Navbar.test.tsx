@@ -43,7 +43,7 @@ describe('Navbar', () => {
 
     mockedUseAuth.mockReturnValue({
       isAuthenticated: true,
-      user: { displayName: 'Test User' },
+      user: { displayName: 'Test User', role: 'User' },
       logout,
     } as any);
 
@@ -60,5 +60,41 @@ describe('Navbar', () => {
 
     await waitFor(() => expect(logout).toHaveBeenCalledTimes(1));
     expect(mockNavigate).toHaveBeenCalledWith('/');
+  });
+
+  it('hides admin navigation for regular users', () => {
+    mockedUseAuth.mockReturnValue({
+      isAuthenticated: true,
+      user: { displayName: 'Regular User', role: 'User' },
+      logout: jest.fn(),
+    } as any);
+
+    render(
+      <MemoryRouter>
+        <Navbar />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole('link', { name: /dashboard/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /profile/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /users/i })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /admin/i })).not.toBeInTheDocument();
+  });
+
+  it('shows admin navigation for admin users', () => {
+    mockedUseAuth.mockReturnValue({
+      isAuthenticated: true,
+      user: { displayName: 'Admin User', role: 'Admin' },
+      logout: jest.fn(),
+    } as any);
+
+    render(
+      <MemoryRouter>
+        <Navbar />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole('link', { name: /admin/i })).toBeInTheDocument();
+    expect(screen.getByText('Admin User')).toBeInTheDocument();
   });
 });

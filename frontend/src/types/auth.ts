@@ -24,6 +24,7 @@ export interface RegisterRequest {
   firstName: string;
   lastName: string;
   email: string;
+  password: string;
   phoneNumber: string;
   address: string;
 }
@@ -75,7 +76,7 @@ export interface LoginResponse {
 export interface RegisterResponse {
   statusCode: number;
   message: string;
-  data: AuthUser;
+  data: JwtTokens;
   errors: ErrorDetail[] | null;
   timestamp: string;
 }
@@ -143,5 +144,6 @@ export interface AuthContextType extends AuthState {
   register: (data: RegisterRequest) => Promise<void>;
   logout: () => Promise<void>;
   refreshToken: () => Promise<void>;
+  updateDisplayName: (displayName: string) => Promise<void>;
   clearError: () => void;
 }

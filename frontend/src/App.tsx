@@ -2,14 +2,14 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { Navbar } from './components/UI/Navbar';
 import { ProtectedRoute } from './components/UI/ProtectedRoute';
+import AdminPanel from './pages/AdminPanel';
 import Dashboard from './pages/Dashboard';
+import Forbidden from './pages/Forbidden';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import NotFound from './pages/NotFound';
 import Profile from './pages/Profile';
 import Register from './pages/Register';
-import CreateUser from './pages/users/CreateUser';
-import UpdateUser from './pages/users/UpdateUser';
 import UserList from './pages/users/UserList';
 
 export default function App() {
@@ -28,10 +28,13 @@ export default function App() {
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/users" element={<UserList />} />
-                <Route path="/users/new" element={<CreateUser />} />
-                <Route path="/users/:id/edit" element={<UpdateUser />} />
               </Route>
 
+              <Route element={<ProtectedRoute allowedRoles={['Admin']} />}>
+                <Route path="/admin" element={<AdminPanel />} />
+              </Route>
+
+              <Route path="/forbidden" element={<Forbidden />} />
               <Route path="/home" element={<Navigate to="/" replace />} />
               <Route path="*" element={<NotFound />} />
             </Routes>

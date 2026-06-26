@@ -3,11 +3,12 @@ import { useAuth } from '../hooks/useAuth';
 
 export default function Dashboard() {
   const { user, tokens, isAuthenticated } = useAuth();
+  const isAdmin = user?.role === 'Admin';
 
   return (
     <section className="page-shell">
       <h1>Dashboard</h1>
-      <p>To jest protected view dla zalogowanego użytkownika.</p>
+      <p>Protected workspace for authenticated users with role-aware navigation.</p>
 
       <div className="grid grid--2">
         <article className="card">
@@ -35,8 +36,13 @@ export default function Dashboard() {
           Profile
         </Link>
         <Link className="button button--ghost" to="/users">
-          Users CRUD
+          Users directory
         </Link>
+        {isAdmin ? (
+          <Link className="button button--ghost" to="/admin">
+            Admin panel
+          </Link>
+        ) : null}
       </div>
     </section>
   );
