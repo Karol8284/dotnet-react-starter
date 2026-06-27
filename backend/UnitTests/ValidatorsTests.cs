@@ -48,6 +48,7 @@ public class ValidatorsTests
             FirstName = string.Empty,
             LastName = string.Empty,
             Email = "invalid-email",
+            Password = string.Empty,
             PhoneNumber = new string('x', 25),
             Address = new string('x', 260),
             CreatedAt = System.DateTime.UtcNow.AddDays(1)
@@ -57,6 +58,7 @@ public class ValidatorsTests
 
         result.ShouldHaveValidationErrorFor(x => x.FirstName);
         result.ShouldHaveValidationErrorFor(x => x.Email);
+        result.ShouldHaveValidationErrorFor(x => x.Password);
         result.ShouldHaveValidationErrorFor(x => x.PhoneNumber);
         result.ShouldHaveValidationErrorFor(x => x.Address);
         result.ShouldHaveValidationErrorFor(x => x.CreatedAt);
@@ -71,6 +73,7 @@ public class ValidatorsTests
             FirstName = "John",
             LastName = "Doe",
             Email = "john.doe@example.com",
+            Password = "password123",
             PhoneNumber = "123456789",
             Address = "123 Main St",
             CreatedAt = System.DateTime.UtcNow
@@ -81,6 +84,7 @@ public class ValidatorsTests
         result.ShouldNotHaveValidationErrorFor(x => x.FirstName);
         result.ShouldNotHaveValidationErrorFor(x => x.LastName);
         result.ShouldNotHaveValidationErrorFor(x => x.Email);
+        result.ShouldNotHaveValidationErrorFor(x => x.Password);
         result.ShouldNotHaveValidationErrorFor(x => x.PhoneNumber);
         result.ShouldNotHaveValidationErrorFor(x => x.Address);
         result.ShouldNotHaveValidationErrorFor(x => x.CreatedAt);

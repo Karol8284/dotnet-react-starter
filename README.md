@@ -73,18 +73,37 @@ dotnet run --project API/API.csproj
 ```
 Runs on `https://localhost:7021`
 
-**Frontend:**
+### Prerequisites
+- Docker & Docker Compose (recommended)
+- Or: Node.js 20+ and .NET 9 SDK
+
+## Environment Configuration
+
+This repository uses two configuration entry points:
+
+1. Root `.env` for Docker Compose and deployment/runtime values.
+2. `frontend/.env.*` files for local CRA frontend builds.
+
+Start from the tracked examples:
+
 ```bash
-cd frontend
-npm install
-npm start
+copy .env.example .env
+copy frontend/.env.example frontend/.env.development.local
 ```
-Runs on `http://localhost:3000`
+
+Important rules:
+
+- Backend secrets go to root `.env`, CI/CD secrets, or hosting configuration.
+- Never put secrets in frontend `REACT_APP_*` variables. They are public at build time.
+- For Docker/nginx deployments, set `FRONTEND_REACT_APP_API_URL=/api`.
+- For local frontend to local backend development, use `REACT_APP_API_URL=http://localhost:5000`.
 
 **Database (first time only):**
 ```bash
-cd backend/API
-dotnet ef database update
+git clone https://github.com/Karol8284/dotnet-react-starter.git
+cd dotnet-react-starter
+copy .env.example .env
+docker-compose up --build
 ```
 
 ---
@@ -560,11 +579,22 @@ docker-compose down -v
 ```bash
 dotnet test backend/UnitTests/UnitTests.csproj
 dotnet test backend/IntegrationTests/IntegrationTests.csproj
+dotnet test backend/E2ETests/E2ETests.csproj
+```
+
+Smoke tests are intended for a running application, for example after `docker compose up` or after deployment.
+
+Optional environment overrides:
+
+```bash
+set SMOKE_API_URL=http://localhost:5000
+set SMOKE_FRONTEND_URL=http://localhost:3000
+dotnet test backend/E2ETests/E2ETests.csproj
 ```
 
 ### Frontend
 ```bash
-npm test
+npm run test:once
 ```
 
 ## 📦 Scripts

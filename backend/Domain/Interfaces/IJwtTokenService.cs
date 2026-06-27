@@ -1,4 +1,5 @@
 using Domain.Entities;
+using Domain.Entities.JWT;
 using System.Security.Claims;
 
 namespace Domain.Interfaces

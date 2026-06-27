@@ -1,6 +1,6 @@
 using API.Controllers;
-using Domain.Entities;
-using Domain.Interfaces;
+using Application.DTOs.User;
+using Application.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -32,34 +32,34 @@ public class UsersControllerTests
     public async Task GetUserById_Returns_ok_with_user_data()
     {
         var userId = Guid.NewGuid();
-        var userEntity = new User { Id = userId, Email = "user@test.com", DisplayName = "John Doe", IsActive = true };
+        var userDto = new UserDto { Id = userId, Email = "user@test.com", FirstName = "John", LastName = "Doe" };
 
-        _userServiceMock.Setup(x => x.GetUserByIdAsync(userId)).ReturnsAsync(ApiResponse<User>.Success(userEntity));
+        _userServiceMock.Setup(x => x.GetUserByIdAsync(userId)).ReturnsAsync(ApiResponse<UserDto>.Success(userDto));
 
         var actionResult = await _controller.GetUserById(userId);
 
         var okResult = Assert.IsType<OkObjectResult>(actionResult.Result);
-        var response = Assert.IsType<ApiResponse<User>>(okResult.Value);
+        var response = Assert.IsType<ApiResponse<UserDto>>(okResult.Value);
 
         Assert.Equal(200, okResult.StatusCode);
-        Assert.Equal(userEntity.Email, response.Data?.Email);
+        Assert.Equal(userDto.Email, response.Data?.Email);
     }
 
     [Fact]
     public async Task GetAllUsers_Returns_paged_user_list()
     {
-        var users = new List<User>
+        var users = new List<UserDto>
         {
-            new() { Id = Guid.NewGuid(), Email = "user1@test.com", DisplayName = "User One", IsActive = true },
-            new() { Id = Guid.NewGuid(), Email = "user2@test.com", DisplayName = "User Two", IsActive = true }
+            new() { Id = Guid.NewGuid(), Email = "user1@test.com", FirstName = "User", LastName = "One" },
+            new() { Id = Guid.NewGuid(), Email = "user2@test.com", FirstName = "User", LastName = "Two" }
         };
 
-        _userServiceMock.Setup(x => x.GetAllUsersPagedAsync(1, 10)).ReturnsAsync(ApiResponse<List<User>>.Success(users));
+        _userServiceMock.Setup(x => x.GetAllUsersPagedAsync(1, 10)).ReturnsAsync(ApiResponse<List<UserDto>>.Success(users));
 
         var actionResult = await _controller.GetAllUsers();
 
         var okResult = Assert.IsType<OkObjectResult>(actionResult.Result);
-        var response = Assert.IsType<ApiResponse<List<User>>>(okResult.Value);
+        var response = Assert.IsType<ApiResponse<List<UserDto>>>(okResult.Value);
 
         Assert.Equal(2, response.Data?.Count);
     }
@@ -95,33 +95,33 @@ public class UsersControllerTests
     public async Task UpdateDisplayName_Returns_ok_when_updated()
     {
         var userId = Guid.NewGuid();
-        var expected = new User { Id = userId, Email = "user@test.com", DisplayName = "New Name", IsActive = true };
+        var expected = new UserDto { Id = userId, Email = "user@test.com", FirstName = "New", LastName = "Name" };
 
-        _userServiceMock.Setup(x => x.UpdateDisplayNameAsync(userId, "NewName")).ReturnsAsync(ApiResponse<User>.Success(expected));
+        _userServiceMock.Setup(x => x.UpdateDisplayNameAsync(userId, "NewName")).ReturnsAsync(ApiResponse<UserDto>.Success(expected));
 
         var actionResult = await _controller.UpdateDisplayName(userId, "NewName");
 
         var okResult = Assert.IsType<OkObjectResult>(actionResult.Result);
-        var response = Assert.IsType<ApiResponse<User>>(okResult.Value);
+        var response = Assert.IsType<ApiResponse<UserDto>>(okResult.Value);
 
         Assert.Equal(expected.Id, response.Data?.Id);
-        Assert.Equal("New Name", response.Data?.DisplayName);
+        Assert.Equal("New", response.Data?.FirstName);
     }
 
     [Fact]
     public async Task UpdateRole_Returns_ok_when_role_updated()
     {
         var userId = Guid.NewGuid();
-        var expected = new User { Id = userId, Email = "user@test.com", DisplayName = "John Doe", IsActive = true, Role = Domain.Enums.UserRole.Admin };
+        var expected = new UserDto { Id = userId, Email = "user@test.com", FirstName = "John", LastName = "Doe" };
 
-        _userServiceMock.Setup(x => x.UpdateUserRoleAsync(userId, "Admin")).ReturnsAsync(ApiResponse<User>.Success(expected));
+        _userServiceMock.Setup(x => x.UpdateUserRoleAsync(userId, "Admin")).ReturnsAsync(ApiResponse<UserDto>.Success(expected));
 
         var actionResult = await _controller.UpdateRole(userId, "Admin");
 
         var okResult = Assert.IsType<OkObjectResult>(actionResult.Result);
-        var response = Assert.IsType<ApiResponse<User>>(okResult.Value);
+        var response = Assert.IsType<ApiResponse<UserDto>>(okResult.Value);
 
         Assert.Equal(expected.Id, response.Data?.Id);
-        Assert.Equal(Domain.Enums.UserRole.Admin, response.Data?.Role);
+        Assert.Equal(expected.Email, response.Data?.Email);
     }
 }

@@ -7,6 +7,22 @@
 
 To jak orkiestra - każdy instrument (kontener) zna swoją rolę i wie, kiedy grać!
 
+## Skąd bierze konfigurację?
+
+`docker-compose.yml` zakłada root plik `.env`.
+
+Start:
+```bash
+copy .env.example .env
+docker-compose up --build
+```
+
+Najważniejsze grupy zmiennych:
+
+- PostgreSQL: `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`
+- Backend: `DEFAULT_CONNECTION`, `JWT_SECRET`, `JWT_*`, `CORS_*`
+- Frontend build: `FRONTEND_REACT_APP_API_URL`
+
 ## Struktura naszego docker-compose.yml
 
 ### Wersja i services
@@ -14,6 +30,8 @@ To jak orkiestra - każdy instrument (kontener) zna swoją rolę i wie, kiedy gr
 version: '3.9'
 
 services:
+  db:
+    ...
   backend:
     ...
   frontend:
@@ -51,12 +69,13 @@ ports:
 
 ```yaml
 environment:
-  - ASPNETCORE_ENVIRONMENT=Production
-  - ASPNETCORE_URLS=http://+:5000
+  - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT}
+  - DefaultConnection=${DEFAULT_CONNECTION}
+  - Jwt__Secret=${JWT_SECRET}
+  - Cors__AllowedOrigins__0=${CORS_ALLOWED_ORIGIN_0}
 ```
-- Zmienne środowiskowe dla aplikacji
-- `ASPNETCORE_ENVIRONMENT=Production` = tryb produkcji
-- `ASPNETCORE_URLS` = gdzie API nasłuchuje
+- Zmienne środowiskowe są wstrzykiwane z root `.env`
+- Backend nie trzyma sekretów w obrazie ani w `appsettings.json`
 
 ```yaml
 networks:
@@ -81,10 +100,18 @@ healthcheck:
 ## Frontend Service
 
 ```yaml
+db:
+  image: postgres:16-alpine
+```
+- Compose uruchamia też PostgreSQL, żeby stack był samowystarczalny lokalnie
+
+```yaml
 frontend:
   build:
     context: ./frontend
     dockerfile: Dockerfile
+    args:
+      REACT_APP_API_URL: ${FRONTEND_REACT_APP_API_URL:-/api}
   container_name: dotnet-react-frontend
   ports:
     - "3000:3000"
@@ -200,7 +227,7 @@ docker-compose exec backend bash
 ### Frontend (React) → Backend (API)
 ```javascript
 // src/services/api.ts
-const API_URL = process.env.REACT_APP_API_URL || 'http://backend:5000';
+const API_URL = process.env.REACT_APP_API_URL || '/api';
 
 fetch(`${API_URL}/api/users`)
 ```
@@ -216,7 +243,7 @@ location /api/ {
 }
 ```
 
-**Nginx** (w frontendu) proxy'uje `/api/*` do backendu!
+**Nginx** proxy'uje `/api/*` do backendu, więc w Dockerze najlepiej budować frontend z `FRONTEND_REACT_APP_API_URL=/api`.
 
 ## Zmienne środowiskowe
 

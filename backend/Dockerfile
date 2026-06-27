@@ -23,6 +23,10 @@ FROM mcr.microsoft.com/dotnet/aspnet:8.0
 # Ustawiamy folder roboczy
 WORKDIR /app
 
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends curl \
+	&& rm -rf /var/lib/apt/lists/*
+
 # Kopiujemy TYLKO opublikowane binaria z etapu builder
 # (Nie potrzebujemy SDK, tylko runtime - mały rozmiar!)
 COPY --from=builder /app/publish .

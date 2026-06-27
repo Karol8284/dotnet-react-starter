@@ -3,6 +3,31 @@
 ## Struktura Backendowa
 
 ```
+
+## Environment i Deployment Configuration
+
+Backend ma trzy warstwy konfiguracji:
+
+1. `appsettings.json` - bezpieczne wspólne defaulty
+2. `appsettings.Development.json` - lokalne override bez sekretów
+3. zmienne środowiskowe / secrets - dane wrażliwe i produkcyjne
+
+Najważniejsze zmienne środowiskowe:
+
+- `DefaultConnection`
+- `Jwt__Secret`
+- `Jwt__Issuer`
+- `Jwt__Audience`
+- `Jwt__RefreshTokenCookieSameSite`
+- `Jwt__RefreshTokenCookieSecurePolicy`
+- `Cors__AllowedOrigins__0`, `Cors__AllowedOrigins__1`, ...
+
+Zasady organizacji:
+
+- Sekrety nigdy nie trafiają do `appsettings*.json` w repo.
+- CORS origins nie są hardcode'owane w `Program.cs`, tylko bind'owane z configu.
+- Cookie policy ma być zależna od środowiska: local zwykle `SameAsRequest`, produkcja zwykle `Always`.
+- Jeżeli frontend i backend działają cross-site, ustaw `SameSite=None` i `SecurePolicy=Always`.
 backend/
 ├── API/                    # Entry point - Controllers, middleware
 ├── Application/            # Logika biznesowa - Services, DTOs

@@ -1,31 +1,34 @@
 import type {
   ApiResponse,
-  CreateUserRequest,
-  CreateUserResponse,
   GetAllUsersResponse,
+  GetUserCountResponse,
   GetUserResponse,
-  UpdateUserRequest,
-  UpdateUserResponse,
+  UpdateDisplayNameResponse,
+  UpdateUserRoleResponse,
 } from '../../types';
 import { httpClient, type HttpClient } from './HttpClient';
 
 export class UserApi {
   constructor(private readonly client: HttpClient = httpClient) {}
 
-  getUsers(): Promise<GetAllUsersResponse> {
-    return this.client.get<GetAllUsersResponse>('/users');
+  getUsers(pageNumber = 1, pageSize = 10): Promise<GetAllUsersResponse> {
+    return this.client.get<GetAllUsersResponse>(`/users?pageNumber=${pageNumber}&pageSize=${pageSize}`);
   }
 
   getUser(id: string): Promise<GetUserResponse> {
     return this.client.get<GetUserResponse>(`/users/${id}`);
   }
 
-  createUser(request: CreateUserRequest): Promise<CreateUserResponse> {
-    return this.client.post<CreateUserResponse, CreateUserRequest>('/users', request);
+  getUserCount(): Promise<GetUserCountResponse> {
+    return this.client.get<GetUserCountResponse>('/users/count');
   }
 
-  updateUser(id: string, request: UpdateUserRequest): Promise<UpdateUserResponse> {
-    return this.client.put<UpdateUserResponse, UpdateUserRequest>(`/users/${id}`, request);
+  updateDisplayName(id: string, displayName: string): Promise<UpdateDisplayNameResponse> {
+    return this.client.put<UpdateDisplayNameResponse, string>(`/users/${id}/display-name`, displayName);
+  }
+
+  updateUserRole(id: string, role: 'User' | 'Admin'): Promise<UpdateUserRoleResponse> {
+    return this.client.put<UpdateUserRoleResponse, string>(`/users/${id}/role`, role);
   }
 
   deleteUser(id: string): Promise<ApiResponse<null>> {

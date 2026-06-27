@@ -24,18 +24,9 @@ export interface RegisterRequest {
   firstName: string;
   lastName: string;
   email: string;
+  password: string;
   phoneNumber: string;
   address: string;
-}
-
-/** Refresh token request */
-export interface RefreshTokenRequest {
-  refreshToken: string;
-}
-
-/** Logout request */
-export interface LogoutRequest {
-  refreshToken: string;
 }
 
 /** Verify token request */
@@ -47,11 +38,11 @@ export interface VerifyTokenRequest {
 // 2️⃣ RESPONSES (Backend → Frontend)
 // ============================================
 
-/** JWT token pair - maps to JwtTokens from User.cs */
+/** Public auth token response returned by the backend. */
 export interface JwtTokens {
   accessToken: string;
-  refreshToken: string;
   expiresIn: number; // seconds (900 = 15 minutes)
+  tokenType?: string;
 }
 
 /** Current authenticated user - maps to /api/auth/me response */
@@ -75,7 +66,7 @@ export interface LoginResponse {
 export interface RegisterResponse {
   statusCode: number;
   message: string;
-  data: AuthUser;
+  data: JwtTokens;
   errors: ErrorDetail[] | null;
   timestamp: string;
 }
@@ -143,5 +134,6 @@ export interface AuthContextType extends AuthState {
   register: (data: RegisterRequest) => Promise<void>;
   logout: () => Promise<void>;
   refreshToken: () => Promise<void>;
+  updateDisplayName: (displayName: string) => Promise<void>;
   clearError: () => void;
 }

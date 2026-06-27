@@ -1,5 +1,6 @@
 import type { ApiError, ApiResponse } from '../../types';
 import { tokenManager } from './TokenManager';
+import { emitApiNotice } from './apiEvents';
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
@@ -29,7 +30,7 @@ export interface RequestOptions<TBody> {
 
 export class HttpClient {
   private readonly baseUrl: string;
-  private readonly onUnauthorized?: () => Promise<boolean>;
+  private onUnauthorized?: () => Promise<boolean>;
 
   constructor(options: HttpClientOptions = {}) {
     const configuredBaseUrl = options.baseUrl ?? process.env.REACT_APP_API_URL ?? 'http://localhost:5000';
@@ -59,6 +60,10 @@ export class HttpClient {
     return this.request<TResponse, TBody>('DELETE', path, { ...options, body });
   }
 
+  setUnauthorizedHandler(handler?: () => Promise<boolean>) {
+    this.onUnauthorized = handler;
+  }
+
   private async request<TResponse, TBody>(
     method: HttpMethod,
     path: string,
@@ -82,6 +87,7 @@ export class HttpClient {
     const response = await fetch(url, {
       method,
       headers,
+      credentials: 'include',
       signal: options.signal,
       body: options.body ? JSON.stringify(options.body) : undefined,
     });
@@ -101,6 +107,21 @@ export class HttpClient {
 
     const apiError = parsed as ApiResponse<unknown> | ApiError | null;
     const message = this.resolveErrorMessage(apiError, response.statusText);
+
+    if (!options.skipAuth && response.status === 401) {
+      emitApiNotice({
+        code: 'session-expired',
+        message: 'Your session expired. Please sign in again.',
+      });
+    }
+
+    if (!options.skipAuth && response.status === 403) {
+      emitApiNotice({
+        code: 'forbidden',
+        message: message || 'You do not have permission to perform this action.',
+      });
+    }
+
     throw new HttpError(response.status, message, apiError);
   }
 

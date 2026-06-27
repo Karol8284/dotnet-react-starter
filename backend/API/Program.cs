@@ -1,16 +1,21 @@
 using API.Filters;
 using API.Middleware;
+using API.Configurations;
+using Application.Interfaces;
+using Application.Services;
 using Domain.Interfaces;
 using FluentValidation.AspNetCore;
 using Infrastructure.Data;
 using Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
 using Serilog;
 using Shared.Settings;
-using System.Text;
+using System.Linq;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -55,8 +60,37 @@ try
     builder.Services.AddSwaggerGen();
 
     // Configure JWT Settings
-    builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("Jwt"));
+    builder.Services.AddOptions<JwtSettings>()
+        .Bind(builder.Configuration.GetSection("Jwt"))
+        .Validate(settings => !string.IsNullOrWhiteSpace(settings.Secret), "JWT Secret is required.")
+        .Validate(settings => settings.Secret.Length >= 32, "JWT Secret must be at least 32 characters long.")
+        .Validate(settings => !string.IsNullOrWhiteSpace(settings.Issuer), "JWT Issuer is required.")
+        .Validate(settings => !string.IsNullOrWhiteSpace(settings.Audience), "JWT Audience is required.")
+        .Validate(settings => settings.AccessTokenExpiresInMinutes > 0, "AccessTokenExpiresInMinutes must be greater than 0.")
+        .Validate(settings => settings.RefreshTokenExpiresInDays > 0, "RefreshTokenExpiresInDays must be greater than 0.")
+        .Validate(settings => !string.IsNullOrWhiteSpace(settings.RefreshTokenCookieName), "RefreshTokenCookieName is required.")
+        .Validate(settings => !string.IsNullOrWhiteSpace(settings.RefreshTokenCookiePath), "RefreshTokenCookiePath is required.")
+        .Validate(settings => Enum.TryParse<SameSiteMode>(settings.RefreshTokenCookieSameSite, true, out _), "RefreshTokenCookieSameSite must be one of: Strict, Lax, None, Unspecified.")
+        .Validate(settings => Enum.TryParse<CookieSecurePolicy>(settings.RefreshTokenCookieSecurePolicy, true, out _), "RefreshTokenCookieSecurePolicy must be one of: Always, SameAsRequest, None.")
+        .Validate(settings => !string.Equals(settings.RefreshTokenCookieSameSite, "None", StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(settings.RefreshTokenCookieSecurePolicy, "None", StringComparison.OrdinalIgnoreCase),
+            "Refresh token cookies with SameSite=None must not use CookieSecurePolicy=None.")
+        .ValidateOnStart(); // Validate on application startup
 
+    builder.Services.AddOptions<CorsSettings>()
+        .Bind(builder.Configuration.GetSection("Cors"))
+        .Validate(settings => settings.AllowedOrigins.Length > 0, "At least one CORS allowed origin is required.")
+        .Validate(settings => settings.AllowedOrigins.All(origin => Uri.TryCreate(origin, UriKind.Absolute, out _)),
+            "All CORS allowed origins must be absolute URLs.")
+        .Validate(settings => !settings.AllowCredentials || settings.AllowedOrigins.All(origin => origin != "*"),
+            "Wildcard CORS origins cannot be used when credentials are enabled.")
+        .ValidateOnStart();
+
+    var corsSettings = builder.Configuration.GetSection("Cors").Get<CorsSettings>() ?? new CorsSettings();
+
+
+    builder.Services.AddHttpContextAccessor();
+    builder.Services.AddHealthChecks();
     // Configure JWT Authentication
     var jwtSettings = builder.Configuration.GetSection("Jwt").Get<JwtSettings>();
     if (jwtSettings == null)
@@ -82,25 +116,38 @@ try
     });
 
     // Register services
-    builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
     builder.Services.AddScoped<ValidationFilterAttribute>();
-    builder.Services.AddScoped<IAuthService, AuthService>();
+    builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
+    builder.Services.AddScoped<IAuthService, DatabaseAuthService>();
+    builder.Services.AddScoped<Application.Interfaces.IUserService, DatabaseUserService>();
 
-    var allowedOrigins = builder.Configuration
-        .GetSection("Cors:AllowedOrigins")
-        .Get<string[]>()
-        ?? [];
+    builder.Services.AddRateLimiter(options =>
+    {
+        options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+        options.AddFixedWindowLimiter("AuthPolicy", limiterOptions =>
+        {
+            limiterOptions.PermitLimit = 5;
+            limiterOptions.Window = TimeSpan.FromMinutes(1);
+            limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+            limiterOptions.QueueLimit = 0;
+        });
+    });
 
-    if (allowedOrigins.Length == 0)
-        throw new InvalidOperationException("CORS allowed origins are not configured");
 
     // Configure CORS
     builder.Services.AddCors(options =>
     {
-        options.AddPolicy("AllowWasm", policy =>
-            policy.WithOrigins(allowedOrigins)
+        options.AddPolicy("ReactApp", policy =>
+        {
+            policy.WithOrigins(corsSettings.AllowedOrigins)
                 .AllowAnyMethod()
-                .AllowAnyHeader());
+                .AllowAnyHeader();
+
+            if (corsSettings.AllowCredentials)
+            {
+                policy.AllowCredentials();
+            }
+        });
     });
 
     var app = builder.Build();
@@ -140,9 +187,14 @@ try
     app.UseCors("AllowWasm");
 
     // JWT Authentication & Authorization
+    app.UseCors("ReactApp");
+
+    app.UseRateLimiter();
+
     app.UseAuthentication();
     app.UseAuthorization();
 
+    app.MapHealthChecks("/health");
     app.MapControllers();
     app.MapHealthChecks("/health");
 

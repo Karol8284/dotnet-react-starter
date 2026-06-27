@@ -1,23 +1,21 @@
 ﻿using Domain.Entities;
+using Domain.Entities.JWT;
 using Domain.Enums;
 using Domain.Interfaces;
+using Infrastructure.Data;
+using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Shared.Settings;
-using System;
-using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace Infrastructure.Services
 {
-    /// <summary>
-    /// Implementation of JWT Token Service
-    /// </summary>
     public class JwtTokenService : IJwtTokenService
     {
         private sealed record RefreshTokenState(
@@ -30,174 +28,191 @@ namespace Infrastructure.Services
 
         private readonly JwtSettings _jwtSettings;
         private readonly ILogger<JwtTokenService> _logger;
-        private static readonly HashSet<string> RevokedTokens = new();
-        private static readonly Dictionary<string, RefreshTokenState> ActiveRefreshTokens = new();
-        private static readonly object RefreshTokenLock = new();
-        private const int AccessTokenExpirationMinutes = 15;
-        private const int RefreshTokenExpirationDays = 7;
+        private readonly ApplicationDbContext _dbContext;
+        private readonly IHttpContextAccessor _httpContextAccessor;
+        private readonly TokenValidationParameters _validationParameters;
 
-        public JwtTokenService(IOptions<JwtSettings> jwtOptions, ILogger<JwtTokenService> logger)
+        public JwtTokenService(
+            IOptions<JwtSettings> jwtOptions,
+            ApplicationDbContext dbContext,
+            ILogger<JwtTokenService> logger,
+            IHttpContextAccessor httpContextAccessor)
         {
             _jwtSettings = jwtOptions.Value ?? throw new ArgumentNullException(nameof(jwtOptions));
             _logger = logger;
+            _httpContextAccessor = httpContextAccessor;
+
+
+            _validationParameters = new TokenValidationParameters
+            {
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.Secret)),
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateLifetime = true,
+                ValidIssuer = _jwtSettings.Issuer,
+                ValidAudience = _jwtSettings.Audience,
+                ClockSkew = TimeSpan.Zero
+            };
+
         }
-        /// <summary>
-        /// Generate JWT access token and refresh token
-        /// </summary>
+
         public async Task<JwtTokens> GenerateTokensAsync(User user)
         {
-            try
+            ArgumentNullException.ThrowIfNull(user);
+
+            var now = DateTime.UtcNow;
+            var accessTokenExpiration = now.AddMinutes(_jwtSettings.AccessTokenExpiresInMinutes);
+            var accessTokenString = CreateAccessToken(user, accessTokenExpiration);
+
+            var rawRefreshToken = GenerateRefreshToken();
+            var refreshTokenHash = HashToken(rawRefreshToken);
+            var clientIp = GetClientIp();
+
+            _dbContext.RefreshTokens.Add(new RefreshToken
             {
-                var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.Secret));
-                var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+                Id = Guid.NewGuid(),
+                UserId = user.Id,
+                UserEmail = user.Email,
+                UserDisplayName = user.DisplayName,
+                UserRole = user.Role,
+                IsEmailConfirmed = user.IsEmailConfirmed,
+                TokenHash = refreshTokenHash,
+                CreatedAt = now,
+                ExpiresAt = now.AddDays(_jwtSettings.RefreshTokenExpiresInDays),
+                CreatedByIp = clientIp,
+                FamilyId = Guid.NewGuid()
+            });
 
-                // Create claims for user
-                var claims = new List<Claim>
-                {
-                    new(ClaimTypes.NameIdentifier, user.Id.ToString()),
-                    new(ClaimTypes.Email, user.Email),
-                    new(ClaimTypes.Name, user.DisplayName),
-                    new(ClaimTypes.Role, user.Role.ToString()),
-                    new("IsEmailConfirmed", user.IsEmailConfirmed.ToString()),
-                };
+            await _dbContext.SaveChangesAsync();
 
-                // Generate Access Token (short-lived)
-                var accessTokenExpiration = DateTime.UtcNow.AddMinutes(AccessTokenExpirationMinutes);
-                var accessTokenDescriptor = new SecurityTokenDescriptor
-                {
-                    Subject = new ClaimsIdentity(claims),
-                    Expires = accessTokenExpiration,
-                    Issuer = _jwtSettings.Issuer,
-                    Audience = _jwtSettings.Audience,
-                    SigningCredentials = credentials,
-                };
+            _logger.LogInformation(
+                "Generated tokens for user {UserId} ({Email}), IP: {Ip}",
+                user.Id, user.Email, clientIp);
 
-                var tokenHandler = new JwtSecurityTokenHandler();
-                var accessToken = tokenHandler.CreateToken(accessTokenDescriptor);
-                var accessTokenString = tokenHandler.WriteToken(accessToken);
-
-                // Generate Refresh Token (long-lived, random string)
-                var refreshToken = GenerateRefreshToken();
-                var refreshExpiration = DateTime.UtcNow.AddDays(RefreshTokenExpirationDays);
-
-                lock (RefreshTokenLock)
-                {
-                    ActiveRefreshTokens[refreshToken] = new RefreshTokenState(
-                        user.Id,
-                        user.Email,
-                        user.DisplayName,
-                        user.Role,
-                        user.IsEmailConfirmed,
-                        refreshExpiration);
-                }
-
-                _logger.LogInformation(
-                    "✓ Generated tokens for user {UserId} ({Email}). Access token expires at {ExpiresAt}",
-                    user.Id,
-                    user.Email,
-                    accessTokenExpiration
-                );
-
-                return await Task.FromResult(new JwtTokens
-                {
-                    AccessToken = accessTokenString,
-                    RefreshToken = refreshToken,
-                    ExpiresIn = (long)(accessTokenExpiration - DateTime.UtcNow).TotalSeconds
-                });
-            }
-            catch (Exception ex)
+            return new JwtTokens
             {
-                _logger.LogError(ex, "❌ Error generating tokens for user {UserId}", user.Id);
-                throw;
-            }
+                AccessToken = accessTokenString,
+                RefreshToken = rawRefreshToken,
+                ExpiresIn = (long)(accessTokenExpiration - now).TotalSeconds
+            };
         }
 
-        /// <summary>
-        /// Validate JWT token and return claims
-        /// </summary>
-        public async Task<ClaimsPrincipal?> ValidateTokenAsync(string token)
-        {
-            try
-            {
-                var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.Secret));
-                var tokenHandler = new JwtSecurityTokenHandler();
-
-                var principal = tokenHandler.ValidateToken(token, new TokenValidationParameters
-                {
-                    ValidateIssuerSigningKey = true,
-                    IssuerSigningKey = key,
-                    ValidateIssuer = true,
-                    ValidateAudience = true,
-                    ValidateLifetime = true,
-                    ValidIssuer = _jwtSettings.Issuer,
-                    ValidAudience = _jwtSettings.Audience,
-                    ClockSkew = TimeSpan.Zero
-                }, out SecurityToken validatedToken);
-
-                return await Task.FromResult(principal);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "⚠️ Token validation failed");
-                return null;
-            }
-        }
-
-        /// <summary>
-        /// Revoke refresh token by adding to blacklist
-        /// </summary>
-        public async Task RevokeTokenAsync(string refreshToken)
-        {
-            lock (RefreshTokenLock)
-            {
-                RevokedTokens.Add(refreshToken);
-                ActiveRefreshTokens.Remove(refreshToken);
-            }
-
-            _logger.LogInformation("🔐 Refresh token revoked");
-            await Task.CompletedTask;
-        }
-
-        /// <summary>
-        /// Check if refresh token is in revoked list
-        /// </summary>
-        public async Task<bool> IsTokenRevokedAsync(string refreshToken)
-        {
-            bool isRevoked;
-            lock (RefreshTokenLock)
-            {
-                isRevoked = RevokedTokens.Contains(refreshToken);
-            }
-
-            return await Task.FromResult(isRevoked);
-        }
-
-        /// <summary>
-        /// Validate refresh token and rotate token pair.
-        /// </summary>
         public async Task<JwtTokens?> RefreshTokensAsync(string refreshToken)
         {
-            RefreshTokenState? tokenState;
+            var tokenHash = HashToken(refreshToken);
+            var storedToken = await _dbContext.RefreshTokens
+                .FirstOrDefaultAsync(x => x.TokenHash == tokenHash);
 
-            lock (RefreshTokenLock)
+            if (storedToken is null)
             {
-                if (RevokedTokens.Contains(refreshToken) || !ActiveRefreshTokens.TryGetValue(refreshToken, out tokenState))
-                {
-                    return null;
-                }
-
-                if (tokenState.ExpiresAt <= DateTime.UtcNow)
-                {
-                    ActiveRefreshTokens.Remove(refreshToken);
-                    RevokedTokens.Add(refreshToken);
-                    return null;
-                }
-
-                ActiveRefreshTokens.Remove(refreshToken);
-                RevokedTokens.Add(refreshToken);
+                _logger.LogWarning("Refresh token not found");
+                return null;
             }
 
-            var user = new User
+            if (storedToken.RevokedAt.HasValue || storedToken.ExpiresAt <= DateTime.UtcNow)
+            {
+                _logger.LogWarning("Refresh token is expired or revoked for user {UserId}", storedToken.UserId);
+                return null;
+            }
+
+            var clientIp = GetClientIp();
+
+            storedToken.LastUsedAt = DateTime.UtcNow;
+            storedToken.LastUsedByIp = clientIp;
+
+            var newTokens = await GenerateTokensAsync(new User
+            {
+                Id = storedToken.UserId,
+                Email = storedToken.UserEmail,
+                DisplayName = storedToken.UserDisplayName,
+                Role = storedToken.UserRole,
+                IsEmailConfirmed = storedToken.IsEmailConfirmed
+            });
+
+            storedToken.RevokedAt = DateTime.UtcNow;
+            storedToken.RevocationReason = RevocationReason.TokenRotated;
+            storedToken.ReplacedByTokenHash = HashToken(newTokens.RefreshToken);
+
+            await _dbContext.SaveChangesAsync();
+
+            return newTokens;
+        }
+
+        public Task<ClaimsPrincipal?> ValidateTokenAsync(string token)
+        {
+            try
+            {
+                var tokenHandler = new JwtSecurityTokenHandler();
+                var principal = tokenHandler.ValidateToken(token, _validationParameters, out _);
+
+                return Task.FromResult<ClaimsPrincipal?>(principal);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Token validation failed");
+                return Task.FromResult<ClaimsPrincipal?>(null);
+            }
+        }
+
+        public async Task RevokeTokenAsync(string refreshToken)
+        {
+            var tokenHash = HashToken(refreshToken);
+            var storedToken = await _dbContext.RefreshTokens
+                .FirstOrDefaultAsync(x => x.TokenHash == tokenHash);
+
+            if (storedToken is null || storedToken.RevokedAt.HasValue)
+                return;
+
+            storedToken.RevokedAt = DateTime.UtcNow;
+            storedToken.RevocationReason = RevocationReason.UserLogout;
+            storedToken.LastUsedAt = DateTime.UtcNow;
+            storedToken.LastUsedByIp = GetClientIp();
+
+            await _dbContext.SaveChangesAsync();
+
+            _logger.LogInformation("Refresh token revoked for user {UserId}", storedToken.UserId);
+        }
+
+        public async Task<bool> IsTokenRevokedAsync(string refreshToken)
+        {
+            var tokenHash = HashToken(refreshToken);
+            var storedToken = await _dbContext.RefreshTokens
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.TokenHash == tokenHash);
+
+            return storedToken is null
+                || storedToken.RevokedAt.HasValue
+                || storedToken.ExpiresAt <= DateTime.UtcNow;
+        }
+
+        private string GetClientIp()
+            => _httpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+
+        private static string GenerateRefreshToken()
+        {
+            var bytes = new byte[32];
+            RandomNumberGenerator.Fill(bytes);
+            return Convert.ToBase64String(bytes);
+        }
+
+        private string CreateAccessToken(User user, DateTime expiresAt)
+        {
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.Secret));
+            var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+            var claims = new List<Claim>
+            {
+                new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+                new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+                new(ClaimTypes.NameIdentifier, user.Id.ToString()),
+                new(ClaimTypes.Email, user.Email),
+                new(ClaimTypes.Name, user.DisplayName),
+                new(ClaimTypes.Role, user.Role.ToString()),
+                new("IsEmailConfirmed", user.IsEmailConfirmed.ToString()),
+            };
+
+            var descriptor = new SecurityTokenDescriptor
             {
                 Id = tokenState.UserId,
                 Email = tokenState.Email,
@@ -209,7 +224,8 @@ namespace Infrastructure.Services
                 PasswordHash = string.Empty
             };
 
-            return await GenerateTokensAsync(user);
+            var handler = new JwtSecurityTokenHandler();
+            return handler.WriteToken(handler.CreateToken(descriptor));
         }
 
         /// <summary>

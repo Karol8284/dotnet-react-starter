@@ -19,25 +19,41 @@ git clone https://github.com/Karol8284/dotnet-react-starter.git
 cd dotnet-react-starter
 ```
 
-### 2. Uruchom Docker Compose
+### 2. Przygotuj konfigurację środowiskową
 ```bash
-docker-compose up
+copy .env.example .env
+copy frontend/.env.example frontend/.env.development.local
+```
+
+Minimalnie sprawdź i popraw w `.env`:
+- `JWT_SECRET`
+- `POSTGRES_PASSWORD`
+- `DEFAULT_CONNECTION`
+
+Jeśli frontend ma korzystać z reverse proxy nginx w Dockerze, zostaw:
+```env
+FRONTEND_REACT_APP_API_URL=/api
+```
+
+### 3. Uruchom Docker Compose
+```bash
+docker-compose up --build
 ```
 
 Pierwszych minutę będzie budować obrazy... ⏳
 
-### 3. Czekaj na:
+### 4. Czekaj na:
 ```
 frontend       | > Compiled successfully!
 backend        | Now listening on: http://0.0.0.0:5000
 ```
 
-### 4. Otwórz przeglądarke
+### 5. Otwórz przeglądarke
 - 🌐 Frontend: **http://localhost:3000**
 - 🔌 API: **http://localhost:5000**
 - 📚 Swagger (API docs): **http://localhost:5000/openapi/v1.json**
 
-### 5. Stop
+### 6. Stop
 ```bash
 docker-compose down
 ```
@@ -58,7 +74,20 @@ cd backend
 dotnet restore
 ```
 
-**3. Uruchom API**
+**3. Ustaw sekrety i config**
+
+Backend bierze konfigurację z:
+1. `appsettings.json`
+2. `appsettings.Development.json`
+3. zmiennych środowiskowych / user secrets
+
+Najważniejsze wartości dla local dev:
+```powershell
+$env:Jwt__Secret="change-this-to-a-long-random-secret-at-least-32-characters"
+$env:DefaultConnection="Host=localhost;Port=5432;Database=dotnetreact;Username=postgres;Password=postgres"
+```
+
+**4. Uruchom API**
 ```bash
 dotnet run --project API/API.csproj
 ```
@@ -74,12 +103,17 @@ API będzie dostępne na: `http://localhost:5000`
 cd frontend
 ```
 
-**2. Zainstaluj zależności npm**
+**2. Skopiuj env dla CRA**
+```bash
+copy .env.example .env.development.local
+```
+
+**3. Zainstaluj zależności npm**
 ```bash
 npm install
 ```
 
-**3. Uruchom dev server**
+**4. Uruchom dev server**
 ```bash
 npm start
 ```
@@ -230,8 +264,8 @@ docker-compose ps
 # Sprawdź logi backendu
 docker-compose logs backend
 
-# Jeśli chodzi o localhost:5000 w dev, zmień na http://backend:5000
-# (bo w docker-compose kontenerami się mówią po imionach)
+# Local CRA -> local backend: REACT_APP_API_URL=http://localhost:5000
+# Docker/nginx proxy: FRONTEND_REACT_APP_API_URL=/api
 ```
 
 ### ❌ "package.json not found"

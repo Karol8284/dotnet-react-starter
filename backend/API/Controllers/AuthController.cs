@@ -1,9 +1,14 @@
 ﻿using Application.DTOs.Auth;
 using Domain.Entities;
+using Domain.Entities.JWT;
 using Domain.Interfaces;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Options;
 using Shared.Responses;
+using Shared.Settings;
 using System.ComponentModel.DataAnnotations;
 
 namespace API.Controllers
@@ -15,15 +20,18 @@ namespace API.Controllers
         private readonly IJwtTokenService _jwtTokenService;
         private readonly IAuthService _authService;
         private readonly ILogger<AuthController> _logger;
+        private readonly JwtSettings _jwtSettings;
 
         public AuthController(
             IJwtTokenService jwtTokenService,
             IAuthService authService,
-            ILogger<AuthController> logger)
+            ILogger<AuthController> logger,
+            IOptions<JwtSettings> jwtOptions)
         {
             _jwtTokenService = jwtTokenService;
             _authService = authService;
             _logger = logger;
+            _jwtSettings = jwtOptions.Value;
         }
 
         /// <summary>
@@ -32,6 +40,7 @@ namespace API.Controllers
         /// </summary>
         [HttpPost("login")]
         [AllowAnonymous]
+        [EnableRateLimiting("AuthPolicy")]
         public async Task<IActionResult> Login([FromBody] LoginUserDto dto)
         {
             if (!ModelState.IsValid)
@@ -51,10 +60,11 @@ namespace API.Controllers
 
                 // Generate JWT tokens
                 var tokens = await _jwtTokenService.GenerateTokensAsync(user);
+                SetRefreshTokenCookie(tokens.RefreshToken);
 
                 _logger.LogInformation("✓ Login successful for user: {UserId} ({Email})", user.Id, user.Email);
 
-                return Ok(ApiResponse<JwtTokens>.Success(tokens, "Login successful", 200));
+                return Ok(ApiResponse<AuthTokenResponse>.Success(CreateTokenResponse(tokens), "Login successful", 200));
             }
             catch (Exception ex)
             {
@@ -69,6 +79,7 @@ namespace API.Controllers
         /// </summary>
         [HttpPost("register")]
         [AllowAnonymous]
+        [EnableRateLimiting("AuthPolicy")]
         public async Task<IActionResult> Register([FromBody] RegisterUserDto dto)
         {
             if (!ModelState.IsValid)
@@ -87,7 +98,8 @@ namespace API.Controllers
                 }
 
                 // Register user
-                var user = await _authService.RegisterAsync(dto.Email, dto.Password, dto.FirstName);
+                var displayName = $"{dto.FirstName} {dto.LastName}".Trim();
+                var user = await _authService.RegisterAsync(dto.Email, dto.Password, displayName);
                 if (user == null)
                 {
                     _logger.LogError("❌ User registration failed for email: {Email}", dto.Email);
@@ -96,10 +108,11 @@ namespace API.Controllers
 
                 // Generate JWT tokens
                 var tokens = await _jwtTokenService.GenerateTokensAsync(user);
+                SetRefreshTokenCookie(tokens.RefreshToken);
 
                 _logger.LogInformation("✓ Registration successful for user: {UserId} ({Email})", user.Id, user.Email);
 
-                return Created($"api/auth/user/{user.Id}", ApiResponse<JwtTokens>.Success(tokens, "Registration successful", 201));
+                return Created($"api/auth/user/{user.Id}", ApiResponse<AuthTokenResponse>.Success(CreateTokenResponse(tokens), "Registration successful", 201));
             }
             catch (Exception ex)
             {
@@ -114,32 +127,26 @@ namespace API.Controllers
         /// </summary>
         [HttpPost("refresh-token")]
         [AllowAnonymous]
-        public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request)
+        public async Task<IActionResult> RefreshToken()
         {
-            if (string.IsNullOrWhiteSpace(request?.RefreshToken))
+            var refreshToken = Request.Cookies[_jwtSettings.RefreshTokenCookieName];
+            if (string.IsNullOrWhiteSpace(refreshToken))
                 return BadRequest(ApiResponse<object>.Error(400, "Refresh token is required", null));
 
             try
             {
                 _logger.LogInformation("🔄 Refresh token request");
 
-                // Check if refresh token is revoked
-                var isRevoked = await _jwtTokenService.IsTokenRevokedAsync(request.RefreshToken);
-                if (isRevoked)
-                {
-                    _logger.LogWarning("⚠️ Refresh token is revoked");
-                    return Unauthorized(ApiResponse<object>.Error(401, "Refresh token has been revoked", null));
-                }
-
-                var tokens = await _jwtTokenService.RefreshTokensAsync(request.RefreshToken);
+                var tokens = await _jwtTokenService.RefreshTokensAsync(refreshToken);
                 if (tokens == null)
                 {
-                    _logger.LogWarning("⚠️ Refresh token validation failed");
+                    ClearRefreshTokenCookie();
                     return Unauthorized(ApiResponse<object>.Error(401, "Invalid or expired refresh token", null));
                 }
 
-                _logger.LogInformation("✓ Refresh token rotated successfully");
-                return Ok(ApiResponse<JwtTokens>.Success(tokens, "Token refreshed", 200));
+                SetRefreshTokenCookie(tokens.RefreshToken);
+
+                return Ok(ApiResponse<AuthTokenResponse>.Success(CreateTokenResponse(tokens), "Token refreshed successfully", 200));
             }
             catch (Exception ex)
             {
@@ -154,9 +161,10 @@ namespace API.Controllers
         /// </summary>
         [HttpPost("logout")]
         [Authorize]
-        public async Task<IActionResult> Logout([FromBody] LogoutRequest request)
+        public async Task<IActionResult> Logout()
         {
-            if (string.IsNullOrWhiteSpace(request?.RefreshToken))
+            var refreshToken = Request.Cookies[_jwtSettings.RefreshTokenCookieName];
+            if (string.IsNullOrWhiteSpace(refreshToken))
                 return BadRequest(ApiResponse<object>.Error(400, "Refresh token is required", null));
 
             try
@@ -165,7 +173,8 @@ namespace API.Controllers
                 _logger.LogInformation("🚪 Logout request from user: {UserId}", userId);
 
                 // Revoke refresh token
-                await _jwtTokenService.RevokeTokenAsync(request.RefreshToken);
+                await _jwtTokenService.RevokeTokenAsync(refreshToken);
+                ClearRefreshTokenCookie();
 
                 _logger.LogInformation("✓ Logout successful for user: {UserId}", userId);
 
@@ -245,24 +254,80 @@ namespace API.Controllers
                 return StatusCode(500, ApiResponse<object>.Error(500, "Internal server error", null));
             }
         }
+
+        private AuthTokenResponse CreateTokenResponse(JwtTokens tokens)
+        {
+            return new AuthTokenResponse
+            {
+                AccessToken = tokens.AccessToken,
+                ExpiresIn = tokens.ExpiresIn,
+                TokenType = tokens.TokenType
+            };
+        }
+
+        private void SetRefreshTokenCookie(string refreshToken)
+        {
+            Response.Cookies.Append(_jwtSettings.RefreshTokenCookieName, refreshToken, CreateRefreshTokenCookieOptions());
+        }
+
+        private void ClearRefreshTokenCookie()
+        {
+            Response.Cookies.Delete(_jwtSettings.RefreshTokenCookieName, CreateRefreshTokenCookieOptions(DateTimeOffset.UnixEpoch));
+        }
+
+        private CookieOptions CreateRefreshTokenCookieOptions(DateTimeOffset? expires = null)
+        {
+            var options = new CookieOptions
+            {
+                HttpOnly = true,
+                IsEssential = _jwtSettings.RefreshTokenCookieIsEssential,
+                Expires = expires ?? DateTimeOffset.UtcNow.AddDays(_jwtSettings.RefreshTokenExpiresInDays),
+                Path = _jwtSettings.RefreshTokenCookiePath,
+                SameSite = ParseSameSiteMode(_jwtSettings.RefreshTokenCookieSameSite),
+                Secure = ResolveSecureFlag(ParseSecurePolicy(_jwtSettings.RefreshTokenCookieSecurePolicy))
+            };
+
+            if (!string.IsNullOrWhiteSpace(_jwtSettings.RefreshTokenCookieDomain))
+            {
+                options.Domain = _jwtSettings.RefreshTokenCookieDomain;
+            }
+
+            return options;
+        }
+
+        private static SameSiteMode ParseSameSiteMode(string value)
+        {
+            return Enum.TryParse<SameSiteMode>(value, true, out var parsed)
+                ? parsed
+                : SameSiteMode.Lax;
+        }
+
+        private static CookieSecurePolicy ParseSecurePolicy(string value)
+        {
+            return Enum.TryParse<CookieSecurePolicy>(value, true, out var parsed)
+                ? parsed
+                : CookieSecurePolicy.SameAsRequest;
+        }
+
+        private bool ResolveSecureFlag(CookieSecurePolicy securePolicy)
+        {
+            return securePolicy switch
+            {
+                CookieSecurePolicy.Always => true,
+                CookieSecurePolicy.None => false,
+                _ => Request.IsHttps,
+            };
+        }
     }
 
     /// <summary>
-    /// Request DTO for refresh token endpoint
+    /// Public auth token response sent to the frontend.
     /// </summary>
-    public class RefreshTokenRequest
+    public class AuthTokenResponse
     {
-        [Required(ErrorMessage = "Refresh token is required")]
-        public string RefreshToken { get; set; } = string.Empty;
-    }
-
-    /// <summary>
-    /// Request DTO for logout endpoint
-    /// </summary>
-    public class LogoutRequest
-    {
-        [Required(ErrorMessage = "Refresh token is required")]
-        public string RefreshToken { get; set; } = string.Empty;
+        public required string AccessToken { get; set; }
+        public required long ExpiresIn { get; set; }
+        public string TokenType { get; set; } = "Bearer";
     }
 
     /// <summary>

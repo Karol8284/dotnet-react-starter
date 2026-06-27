@@ -59,4 +59,45 @@ describe('ProtectedRoute', () => {
 
     expect(screen.getByText(/protected/i)).toBeInTheDocument();
   });
+
+  it('redirects to forbidden page when authenticated user lacks the required role', () => {
+    mockedUseAuth.mockReturnValue({
+      isAuthenticated: true,
+      loading: false,
+      user: { role: 'User' },
+    } as any);
+
+    render(
+      <MemoryRouter initialEntries={['/admin']}>
+        <Routes>
+          <Route path="/forbidden" element={<div>Forbidden Page</div>} />
+          <Route element={<ProtectedRoute allowedRoles={['Admin']} />}>
+            <Route path="/admin" element={<div>Admin Panel</div>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText(/forbidden page/i)).toBeInTheDocument();
+  });
+
+  it('renders admin content when authenticated user has the required role', () => {
+    mockedUseAuth.mockReturnValue({
+      isAuthenticated: true,
+      loading: false,
+      user: { role: 'Admin' },
+    } as any);
+
+    render(
+      <MemoryRouter initialEntries={['/admin']}>
+        <Routes>
+          <Route element={<ProtectedRoute allowedRoles={['Admin']} />}>
+            <Route path="/admin" element={<div>Admin Panel</div>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText(/admin panel/i)).toBeInTheDocument();
+  });
 });

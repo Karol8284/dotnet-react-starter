@@ -3,6 +3,32 @@
 ## Struktura Frontendowa
 
 ```
+
+## Environment Configuration
+
+Frontend ma tylko publiczne zmienne build-time z prefiksem `REACT_APP_`.
+
+Najważniejsza zmienna w tym projekcie:
+
+- `REACT_APP_API_URL`
+
+Tryby użycia:
+
+1. Local frontend -> local backend:
+```env
+REACT_APP_API_URL=http://localhost:5000
+```
+
+2. Frontend za nginx reverse proxy / Docker:
+```env
+REACT_APP_API_URL=/api
+```
+
+Zasady:
+
+- Nigdy nie wkładaj sekretów do `REACT_APP_*`.
+- Traktuj `frontend/.env.example` jako szablon, a własne wartości trzymaj w `frontend/.env.development.local` lub w pipeline builda.
+- Dla auth cookie frontend musi wysyłać requesty z `credentials: 'include'`.
 frontend/
 ├── public/                 # Statyczne pliki (favicon, manifest)
 ├── src/
@@ -97,7 +123,7 @@ src/services/
 // src/services/api.ts
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://backend:5000';
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 export const api = axios.create({
   baseURL: `${API_URL}/api`,

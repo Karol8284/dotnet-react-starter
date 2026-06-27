@@ -2,7 +2,6 @@ import type { AuthUser, JwtTokens } from '../../types';
 
 const STORAGE_KEYS = {
   accessToken: 'drs.auth.accessToken',
-  refreshToken: 'drs.auth.refreshToken',
   user: 'drs.auth.user',
 } as const;
 
@@ -15,18 +14,16 @@ export class TokenManager {
 
   setSession(tokens: JwtTokens, user?: AuthUser | null): void {
     this.storage.setItem(STORAGE_KEYS.accessToken, tokens.accessToken);
-    this.storage.setItem(STORAGE_KEYS.refreshToken, tokens.refreshToken);
     if (user) {
       this.storage.setItem(STORAGE_KEYS.user, JSON.stringify(user));
+      return;
     }
+
+    this.storage.removeItem(STORAGE_KEYS.user);
   }
 
   getAccessToken(): string | null {
     return this.storage.getItem(STORAGE_KEYS.accessToken);
-  }
-
-  getRefreshToken(): string | null {
-    return this.storage.getItem(STORAGE_KEYS.refreshToken);
   }
 
   getUser(): AuthUser | null {
@@ -45,27 +42,24 @@ export class TokenManager {
 
   getSession(): JwtTokens | null {
     const accessToken = this.getAccessToken();
-    const refreshToken = this.getRefreshToken();
 
-    if (!accessToken || !refreshToken) {
+    if (!accessToken) {
       return null;
     }
 
     return {
       accessToken,
-      refreshToken,
       expiresIn: this.getAccessTokenExpiresInSeconds(accessToken),
     };
   }
 
   clearSession(): void {
     this.storage.removeItem(STORAGE_KEYS.accessToken);
-    this.storage.removeItem(STORAGE_KEYS.refreshToken);
     this.storage.removeItem(STORAGE_KEYS.user);
   }
 
   hasSession(): boolean {
-    return Boolean(this.getAccessToken() && this.getRefreshToken());
+    return Boolean(this.getAccessToken());
   }
 
   isAccessTokenExpired(skewSeconds = 30): boolean {

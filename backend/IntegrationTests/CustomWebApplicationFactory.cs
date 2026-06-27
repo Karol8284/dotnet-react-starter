@@ -5,17 +5,16 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.IdentityModel.Tokens;
-using Microsoft.Extensions.Options;
-using Shared.Settings;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 
 namespace IntegrationTests;
 
 public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 {
+    private readonly string _databaseName = $"IntegrationTestDb_{Guid.NewGuid()}";
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Integration");
@@ -27,8 +26,9 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 ["Jwt:Secret"] = "test-secret-key-1234567890-test-1234567890-extended",
                 ["Jwt:Issuer"] = "test-issuer",
                 ["Jwt:Audience"] = "test-audience",
-                ["DbConnectionString"] = "Host=localhost;Database=IntegrationTest;Username=test;Password=test;",
-                ["DefaultConnection"] = "Host=localhost;Database=IntegrationTest;Username=test;Password=test;"
+                ["Jwt:AccessTokenExpiresInMinutes"] = "15",
+                ["Jwt:RefreshTokenExpiresInDays"] = "7",
+                ["Jwt:RefreshTokenCookieSecurePolicy"] = "SameAsRequest"
             };
 
             configBuilder.AddInMemoryCollection(settings);
@@ -36,34 +36,12 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
         builder.ConfigureServices(services =>
         {
-            var descriptor = services.SingleOrDefault(
-                d => d.ServiceType == typeof(DbContextOptions<ApplicationDbContext>));
-
-            if (descriptor != null)
-            {
-                services.Remove(descriptor);
-            }
+            services.RemoveAll(typeof(DbContextOptions<ApplicationDbContext>));
 
             services.AddDbContext<ApplicationDbContext>(options =>
             {
-                options.UseInMemoryDatabase("IntegrationTestDb");
+                options.UseInMemoryDatabase(_databaseName);
             });
-
-            var jwtSettings = new JwtSettings
-            {
-                Secret = "test-secret-key-1234567890-test-1234567890-extended",
-                Issuer = "test-issuer",
-                Audience = "test-audience"
-            };
-
-            services.PostConfigure<JwtSettings>(options =>
-            {
-                options.Secret = jwtSettings.Secret;
-                options.Issuer = jwtSettings.Issuer;
-                options.Audience = jwtSettings.Audience;
-            });
-
-            services.AddSingleton<IOptions<JwtSettings>>(Options.Create(jwtSettings));
 
             services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
             {
@@ -73,9 +51,11 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                     ValidateAudience = true,
                     ValidateLifetime = true,
                     ValidateIssuerSigningKey = true,
-                    ValidIssuer = jwtSettings.Issuer,
-                    ValidAudience = jwtSettings.Audience,
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Secret))
+                    ValidIssuer = "test-issuer",
+                    ValidAudience = "test-audience",
+                    IssuerSigningKey = new SymmetricSecurityKey(
+                        Encoding.UTF8.GetBytes("test-secret-key-1234567890-test-1234567890-extended")),
+                    ClockSkew = TimeSpan.Zero
                 };
             });
         });

@@ -56,6 +56,14 @@ export interface GetAllUsersResponse {
   timestamp: string;
 }
 
+export interface GetUserCountResponse {
+  statusCode: number;
+  message: string;
+  data: number;
+  errors: ErrorDetail[] | null;
+  timestamp: string;
+}
+
 export interface CreateUserResponse {
   statusCode: number;
   message: string;
@@ -65,6 +73,22 @@ export interface CreateUserResponse {
 }
 
 export interface UpdateUserResponse {
+  statusCode: number;
+  message: string;
+  data: UserDto;
+  errors: ErrorDetail[] | null;
+  timestamp: string;
+}
+
+export interface UpdateDisplayNameResponse {
+  statusCode: number;
+  message: string;
+  data: UserDto;
+  errors: ErrorDetail[] | null;
+  timestamp: string;
+}
+
+export interface UpdateUserRoleResponse {
   statusCode: number;
   message: string;
   data: UserDto;
