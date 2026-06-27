@@ -1,267 +1,195 @@
-# Aktualny poziom realizacji projektu:
-(Oceniony przez AI, chciałem procentowego oszacowania,abym wiedział ile przedemną, do napisania jeszcze jest, aktualnie chyba głównei testy i szlify do V1.0
-<br>
-Oto szacunkowa ocena postępu do wersji V1.0 (MVP, produkcyjny JWT + Users CRUD, bez zaawansowanych ficzerów):
+# .NET React Starter
 
-**Cały projekt (V1.0): ok. 70%**
+Production-oriented full-stack starter with ASP.NET Core 9 API, React + TypeScript frontend, JWT authentication, refresh-token rotation in HttpOnly cookies, Docker Compose, and automated test projects.
+
+This repository is a practical base for auth-heavy applications, admin dashboards, and future starter implementations. It already includes backend auth flows, protected frontend routes, role-aware access, Docker wiring, and test projects you can extend.
+
+## Features
+
+- Clean Architecture backend split into `API`, `Application`, `Domain`, `Infrastructure`, and `Shared`
+- React + TypeScript frontend with protected routes and authenticated session handling
+- JWT access tokens with secure refresh-token rotation in HttpOnly cookies
+- Role-aware authorization for admin-only endpoints and views
+- React Hook Form + Zod for frontend form validation
+- Serilog logging and centralized exception handling
+- Dockerfiles for backend and frontend
+- Docker Compose setup with PostgreSQL, backend healthcheck, and frontend proxy-ready API routing
+- Unit, integration, and smoke/E2E test projects
+- Swagger UI in development
+
+## Current Stack
 
 ### Backend
-- JWT login/register/me/logout: 100%
-- Refresh-token: 95% (działa, ale brak testów integracyjnych i panelu do zarządzania tokenami)
-- UsersController CRUD: 80% (endpointy są, wymaga pełnych testów i walidacji edge-case)
-- Testy jednostkowe/integracyjne: 30% (brak pokrycia, tylko szkielet)
-- Obsługa błędów/logowanie: 80%
-- Migracje/DB setup: 90% (brakuje migracji startowej dla RefreshToken)
-- Bezpieczeństwo (hash refresh tokenów, rotacja): 90%
+
+- .NET 9
+- ASP.NET Core Web API
+- Entity Framework Core
+- PostgreSQL in Docker/runtime scenarios
+- FluentValidation
+- Serilog
+- xUnit + Moq
 
 ### Frontend
-- TokenManager, HttpClient, AuthApi, UserApi: 100%
-- AuthContext, ProtectedRoute, Navbar: 100%
-- Strony: login, register, dashboard, profile, users CRUD: 90% (UI minimalistyczne, ale działa)
-- Obsługa automatycznego odświeżania tokena: 90% (wymaga testu end-to-end)
-- Walidacja formularzy/UI/UX: 70%
-- Testy frontend: 20% (brak testów automatycznych)
-- Build/produkcyjny deploy: 100%
 
-### DevOps/Integracja
-- Docker/compose: 80% (pliki są, wymaga testu całościowego)
-- README/setup: 80% (dokumentacja jest, ale niepełna dla nowych ficzerów)
-- CI/CD: 0% (brak pipeline)
+- React 19
+- TypeScript
+- React Router
+- React Hook Form
+- Zod
+- Testing Library + Jest
+- CRA build pipeline via `react-scripts`
 
----
+## Project Structure
 
-**Podsumowanie:**
-- Backend: ~85% (główne funkcje są, brakuje testów i drobnych szlifów)
-- Frontend: ~90% (wszystko działa, UI do dopracowania, testy do napisania)
-- Testy automatyczne: ~25%
-- Dokumentacja/devops: ~60%
-
-Do pełnego V1.0 brakuje: testów (unit/integration), migracji startowej dla RefreshToken, pełnej dokumentacji, CI/CD oraz szlifów UI/UX.
-
-Chcesz szczegółowy plan „co zrobić do 100%”?
-
-# 🚀 .NET React Starter
-
-A modern, production-ready starter template for building full-stack web applications with **.NET 8 API** and **React + TypeScript**.
-
-Perfect for teams who want a clean architecture, Docker support, and best practices out of the box.
-
-## ✨ Features
-
-- ✅ **Clean Architecture** - Domain, Application, Infrastructure layers
-- ✅ **Docker Support** - Docker & Docker Compose for easy deployment
-- ✅ **TypeScript** - Full type safety on frontend
-- ✅ **Modern Stack** - React 18, .NET 8, Material-UI, React Query, Zustand
-- ✅ **Ready for Testing** - Unit, Integration, E2E test projects
-- ✅ **API Documentation** - Swagger/OpenAPI included
-- ✅ **Form Validation** - Zod + React Hook Form
-- ✅ **State Management** - Zustand for client state, React Query for server state
-
-## 🚀 Quick Start
-
-### Prerequisites
-- Docker & Docker Compose (recommended)
-- Or: Node.js 20+ and .NET 9 SDK
+```text
+.
+├── backend/
+│   ├── API/                  # Controllers, middleware, startup, auth configuration
+│   ├── Application/          # DTOs, services, validators, interfaces
+│   ├── Domain/               # Entities, enums, domain interfaces
+│   ├── Infrastructure/       # DbContext, repositories, infrastructure services
+│   ├── Shared/               # Shared responses, settings, helpers
+│   ├── UnitTests/            # Focused unit tests
+│   ├── IntegrationTests/     # Backend integration tests
+│   └── E2ETests/             # Deployment smoke tests against a running app
+├── frontend/
+│   ├── public/
+│   └── src/
+│       ├── components/
+│       ├── context/
+│       ├── hooks/
+│       ├── pages/
+│       ├── services/
+│       ├── tests/
+│       ├── types/
+│       └── utils/
+├── docker/
+└── doc/
+```
 
 ## Environment Configuration
 
 This repository uses two configuration entry points:
 
-1. Root `.env` for Docker Compose and deployment/runtime values.
-2. `frontend/.env.*` files for local CRA frontend builds.
+1. Root `.env` for Docker Compose and backend runtime values.
+2. `frontend/.env.*` files for local frontend build-time values.
 
 Start from the tracked examples:
 
-```bash
-copy .env.example .env
-copy frontend/.env.example frontend/.env.development.local
+```powershell
+Copy-Item .env.example .env
+Copy-Item frontend/.env.example frontend/.env.development.local
 ```
 
-Important rules:
+Rules:
 
-- Backend secrets go to root `.env`, CI/CD secrets, or hosting configuration.
-- Never put secrets in frontend `REACT_APP_*` variables. They are public at build time.
-- For Docker/nginx deployments, set `FRONTEND_REACT_APP_API_URL=/api`.
+- Backend secrets belong in root `.env`, CI/CD secrets, or hosting configuration.
+- Frontend `REACT_APP_*` values are public at build time. Never store secrets there.
+- For Docker/nginx deployments, use `FRONTEND_REACT_APP_API_URL=/api`.
 - For local frontend to local backend development, use `REACT_APP_API_URL=http://localhost:5000`.
 
-### Run with Docker (Recommended)
-```bash
+## Quick Start
+
+### Prerequisites
+
+- .NET 9 SDK
+- Node.js 20+
+- Docker Desktop with Compose support for containerized runs
+
+### Run with Docker
+
+```powershell
 git clone https://github.com/Karol8284/dotnet-react-starter.git
-cd dotnet-react-starter
-copy .env.example .env
-docker-compose up --build
+Set-Location dotnet-react-starter
+Copy-Item .env.example .env
+docker compose up --build
 ```
+
+Default local endpoints:
 
 - Frontend: http://localhost:3000
 - API: http://localhost:5000
-- Swagger: http://localhost:5000/openapi/v1.json
+- Health: http://localhost:5000/health
+- Swagger UI: http://localhost:5000/swagger
 
-## 📚 Documentation
+### Run Locally Without Docker
 
-- **[Getting Started](./doc/GETTING_STARTED.md)** - Detailed setup instructions
-- **[Architecture](./doc/ARCHITECTURE.md)** - Project structure overview
-- **[Backend Setup](./doc/BACKEND_SETUP.md)** - How to develop on backend
-- **[Frontend Setup](./doc/FRONTEND_SETUP.md)** - How to develop on frontend
-- **[Docker Guide](./docker/DOCKER_COMPOSE.md)** - Docker orchestration
+Backend:
 
-## 📁 Project Structure
-
-```
-├── backend/              # .NET 8 API (Clean Architecture)
-│   ├── API/              # Controllers, Middleware
-│   ├── Application/      # Services, DTOs, Validators
-│   ├── Domain/           # Entities, Interfaces, Business Rules
-│   ├── Infrastructure/   # Database, Repositories
-│   ├── Shared/           # Common Classes
-│   └── Tests/            # Unit, Integration, E2E Tests
-│
-├── frontend/             # React + TypeScript
-│   └── src/
-│       ├── components/   # Reusable React Components
-│       ├── pages/        # Full Page Components
-│       ├── services/     # API Communication (Axios)
-│       ├── hooks/        # Custom React Hooks
-│       ├── context/      # State Management (Zustand)
-│       ├── types/        # TypeScript Interfaces
-│       └── utils/        # Helper Functions
-│
-└── docker/               # Docker Configs
-    ├── nginx.conf        # Reverse Proxy
-    └── DOCKER_COMPOSE.md # Documentation
+```powershell
+Set-Location backend/API
+dotnet run
 ```
 
-## 🛠️ Tech Stack
+Frontend:
+
+```powershell
+Set-Location frontend
+npm install
+npm start
+```
+
+If you run the frontend locally against the local backend, make sure `frontend/.env.development.local` contains:
+
+```text
+REACT_APP_API_URL=http://localhost:5000
+```
+
+## Testing
 
 ### Backend
-- **.NET 8** - Modern C# framework
-- **Entity Framework Core** - ORM
-- **Clean Architecture** - Separation of concerns
-- **AutoMapper** - Object mapping
-- **xUnit/Moq** - Testing
 
-### Frontend
-- **React 18** - UI Library
-- **TypeScript** - Type Safety
-- **React Router** - Routing
-- **React Query** - Server State Management
-- **Zustand** - Client State Management
-- **Material-UI** - Component Library
-- **React Hook Form + Zod** - Form Validation
-
-### DevOps
-- **Docker** - Containerization
-- **Docker Compose** - Orchestration
-- **GitHub Actions** - CI/CD (ready for setup)
-
-## 📝 Development Workflow
-
-### Adding a New Feature - Backend
-1. Create Entity in `Domain/Entities`
-2. Create DTO in `Application/DTOs`
-3. Create Service in `Application/Services`
-4. Create Repository in `Infrastructure/Repositories`
-5. Create Controller in `API/Controllers`
-6. Register in `Program.cs`
-
-### Adding a New Feature - Frontend
-1. Create types in `src/types`
-2. Create service in `src/services`
-3. Create hook in `src/hooks`
-4. Create component in `src/components`
-5. Create page in `src/pages`
-6. Add route in `src/App.tsx`
-
-See [BACKEND_SETUP.md](./doc/BACKEND_SETUP.md) and [FRONTEND_SETUP.md](./doc/FRONTEND_SETUP.md) for detailed examples!
-
-## 🐳 Docker Commands
-
-```bash
-# Start everything
-docker-compose up
-
-# Start in background
-docker-compose up -d
-
-# Rebuild after code changes
-docker-compose up --build
-
-# View logs
-docker-compose logs -f frontend
-docker-compose logs -f backend
-
-# Stop everything
-docker-compose down
-
-# Stop and remove data
-docker-compose down -v
-```
-
-## 🧪 Running Tests
-
-### Backend
-```bash
+```powershell
 dotnet test backend/UnitTests/UnitTests.csproj
 dotnet test backend/IntegrationTests/IntegrationTests.csproj
+dotnet test backend/E2ETests/E2ETests.csproj
+```
+
+Smoke tests in `E2ETests` are meant for a running application, for example after `docker compose up` or after deployment.
+
+Optional smoke-test overrides:
+
+```powershell
+$env:SMOKE_API_URL="http://localhost:5000"
+$env:SMOKE_FRONTEND_URL="http://localhost:3000"
+dotnet test backend/E2ETests/E2ETests.csproj
 ```
 
 ### Frontend
-```bash
+
+```powershell
+Set-Location frontend
+npm install
 npm run test:once
+npm run build
 ```
 
-## 📦 Scripts
+## Authentication Overview
 
-### Frontend
-```bash
-npm start         # Start development server
-npm run build     # Build for production
-npm test          # Run tests
-npm run lint      # Check code quality
-```
+- `POST /api/auth/login` returns an access token and sets the refresh-token cookie
+- `POST /api/auth/register` creates a user, returns an access token, and sets the refresh-token cookie
+- `POST /api/auth/refresh-token` rotates the refresh-token cookie and returns a fresh access token
+- `POST /api/auth/logout` revokes the refresh token and clears the cookie
+- `GET /api/auth/me` returns the authenticated user profile
 
-### Backend
-```bash
-dotnet run --project backend/API/API.csproj
-dotnet test backend/
-dotnet build backend/
-```
+The frontend stores only the access token client-side. The refresh token stays in an HttpOnly cookie and is not exposed to JavaScript.
 
-## 🚢 Deployment
+## Documentation
 
-The Docker images are production-ready. Deploy to:
-- Docker Hub + Docker Swarm
-- Kubernetes
-- AWS ECS
-- Azure Container Instances
-- Heroku, Railway, Render, etc.
+- [doc/GETTING_STARTED.md](doc/GETTING_STARTED.md)
+- [doc/ARCHITECTURE.md](doc/ARCHITECTURE.md)
+- [doc/BACKEND_SETUP.md](doc/BACKEND_SETUP.md)
+- [doc/FRONTEND_SETUP.md](doc/FRONTEND_SETUP.md)
+- [docker/DOCKER_COMPOSE.md](docker/DOCKER_COMPOSE.md)
 
-## 📖 Learning Resources
+## Suggested Next Steps
 
-- [Clean Architecture by Robert C. Martin](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html)
-- [React Documentation](https://react.dev/)
-- [.NET Documentation](https://docs.microsoft.com/en-us/dotnet/)
-- [Docker Best Practices](https://docs.docker.com/develop/develop-images/dockerfile_best-practices/)
+- Add full profile editing and change-password flows
+- Add CI with GitHub Actions for backend tests, frontend tests, and builds
+- Add forgot-password and email-confirmation flows
+- Expand admin user management and filtering
+- Migrate the frontend from CRA to Vite when the current feature set stabilizes
 
-## 📄 License
+## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## 📧 Support
-
-For questions and issues:
-1. Check the [documentation](./doc/)
-2. Open a GitHub Issue
-3. Create a Discussion
-
----
-
-**Ready to build something amazing?** 🚀
-
-```bash
-docker-compose up
-```
-
+MIT. See [LICENSE](LICENSE).
