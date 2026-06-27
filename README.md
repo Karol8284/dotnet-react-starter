@@ -202,6 +202,17 @@ docker-compose down -v
 ```bash
 dotnet test backend/UnitTests/UnitTests.csproj
 dotnet test backend/IntegrationTests/IntegrationTests.csproj
+dotnet test backend/E2ETests/E2ETests.csproj
+```
+
+Smoke tests are intended for a running application, for example after `docker compose up` or after deployment.
+
+Optional environment overrides:
+
+```bash
+set SMOKE_API_URL=http://localhost:5000
+set SMOKE_FRONTEND_URL=http://localhost:3000
+dotnet test backend/E2ETests/E2ETests.csproj
 ```
 
 ### Frontend
