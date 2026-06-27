@@ -14,6 +14,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Serilog;
 using Shared.Settings;
+using System.Linq;
 using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -84,8 +85,20 @@ try
             "Refresh token cookies with SameSite=None must not use CookieSecurePolicy=None.")
         .ValidateOnStart(); // Validate on application startup
 
+    builder.Services.AddOptions<CorsSettings>()
+        .Bind(builder.Configuration.GetSection("Cors"))
+        .Validate(settings => settings.AllowedOrigins.Length > 0, "At least one CORS allowed origin is required.")
+        .Validate(settings => settings.AllowedOrigins.All(origin => Uri.TryCreate(origin, UriKind.Absolute, out _)),
+            "All CORS allowed origins must be absolute URLs.")
+        .Validate(settings => !settings.AllowCredentials || settings.AllowedOrigins.All(origin => origin != "*"),
+            "Wildcard CORS origins cannot be used when credentials are enabled.")
+        .ValidateOnStart();
+
+    var corsSettings = builder.Configuration.GetSection("Cors").Get<CorsSettings>() ?? new CorsSettings();
+
 
     builder.Services.AddHttpContextAccessor();
+    builder.Services.AddHealthChecks();
     // Configure JWT Authentication
     builder.Services.AddAuthentication(options =>
     {
@@ -119,15 +132,16 @@ try
     builder.Services.AddCors(options =>
     {
         options.AddPolicy("ReactApp", policy =>
-            policy.WithOrigins(
-                "http://localhost:5173",// Vite dev server
-                "https://localhost:5173",
-                "http://localhost:3000" // Create React App / alternatywny port
-                )
+        {
+            policy.WithOrigins(corsSettings.AllowedOrigins)
                 .AllowAnyMethod()
-                .AllowAnyHeader()
-                .AllowCredentials() // Potrzebne gdy używasz HttpOnly cookies w przyszłości
-                );
+                .AllowAnyHeader();
+
+            if (corsSettings.AllowCredentials)
+            {
+                policy.AllowCredentials();
+            }
+        });
     });
 
     var app = builder.Build();
@@ -172,6 +186,7 @@ try
     app.UseAuthentication();
     app.UseAuthorization();
 
+    app.MapHealthChecks("/health");
     app.MapControllers();
 
     Log.Information("🌐 Application listening on configured ports");

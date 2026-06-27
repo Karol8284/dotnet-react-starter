@@ -61,13 +61,35 @@ Perfect for teams who want a clean architecture, Docker support, and best practi
 
 ### Prerequisites
 - Docker & Docker Compose (recommended)
-- Or: Node.js 20+ and .NET 8 SDK
+- Or: Node.js 20+ and .NET 9 SDK
+
+## Environment Configuration
+
+This repository uses two configuration entry points:
+
+1. Root `.env` for Docker Compose and deployment/runtime values.
+2. `frontend/.env.*` files for local CRA frontend builds.
+
+Start from the tracked examples:
+
+```bash
+copy .env.example .env
+copy frontend/.env.example frontend/.env.development.local
+```
+
+Important rules:
+
+- Backend secrets go to root `.env`, CI/CD secrets, or hosting configuration.
+- Never put secrets in frontend `REACT_APP_*` variables. They are public at build time.
+- For Docker/nginx deployments, set `FRONTEND_REACT_APP_API_URL=/api`.
+- For local frontend to local backend development, use `REACT_APP_API_URL=http://localhost:5000`.
 
 ### Run with Docker (Recommended)
 ```bash
 git clone https://github.com/Karol8284/dotnet-react-starter.git
 cd dotnet-react-starter
-docker-compose up
+copy .env.example .env
+docker-compose up --build
 ```
 
 - Frontend: http://localhost:3000
@@ -184,7 +206,7 @@ dotnet test backend/IntegrationTests/IntegrationTests.csproj
 
 ### Frontend
 ```bash
-npm test
+npm run test:once
 ```
 
 ## 📦 Scripts

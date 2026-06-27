@@ -4,6 +4,11 @@ FROM node:20-alpine AS builder
 # Ustawiamy folder roboczy
 WORKDIR /app
 
+ARG REACT_APP_API_URL=/api
+ARG NODE_OPTIONS=--max_old_space_size=4096
+ENV REACT_APP_API_URL=$REACT_APP_API_URL
+ENV NODE_OPTIONS=$NODE_OPTIONS
+
 # Kopiujemy package.json i package-lock.json
 COPY package*.json ./
 
