@@ -142,6 +142,17 @@ REACT_APP_API_URL=http://localhost:5000
 ```powershell
 dotnet test backend/UnitTests/UnitTests.csproj
 dotnet test backend/IntegrationTests/IntegrationTests.csproj
+dotnet test backend/E2ETests/E2ETests.csproj
+```
+
+Smoke tests in `E2ETests` are meant for a running application, for example after `docker compose up` or after deployment.
+
+Optional smoke-test overrides:
+
+```powershell
+$env:SMOKE_API_URL="http://localhost:5000"
+$env:SMOKE_FRONTEND_URL="http://localhost:3000"
+dotnet test backend/E2ETests/E2ETests.csproj
 ```
 
 ### Frontend
