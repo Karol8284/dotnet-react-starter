@@ -18,6 +18,14 @@ namespace Infrastructure.Services
 {
     public class JwtTokenService : IJwtTokenService
     {
+        private sealed record RefreshTokenState(
+            Guid UserId,
+            string Email,
+            string DisplayName,
+            UserRole Role,
+            bool IsEmailConfirmed,
+            DateTime ExpiresAt);
+
         private readonly JwtSettings _jwtSettings;
         private readonly ILogger<JwtTokenService> _logger;
         private readonly ApplicationDbContext _dbContext;
@@ -31,7 +39,6 @@ namespace Infrastructure.Services
             IHttpContextAccessor httpContextAccessor)
         {
             _jwtSettings = jwtOptions.Value ?? throw new ArgumentNullException(nameof(jwtOptions));
-            _dbContext = dbContext;
             _logger = logger;
             _httpContextAccessor = httpContextAccessor;
 
@@ -207,22 +214,31 @@ namespace Infrastructure.Services
 
             var descriptor = new SecurityTokenDescriptor
             {
-                Subject = new ClaimsIdentity(claims),
-                Expires = expiresAt,
-                Issuer = _jwtSettings.Issuer,
-                Audience = _jwtSettings.Audience,
-                SigningCredentials = credentials,
+                Id = tokenState.UserId,
+                Email = tokenState.Email,
+                DisplayName = tokenState.DisplayName,
+                Role = tokenState.Role,
+                IsEmailConfirmed = tokenState.IsEmailConfirmed,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow,
+                PasswordHash = string.Empty
             };
 
             var handler = new JwtSecurityTokenHandler();
             return handler.WriteToken(handler.CreateToken(descriptor));
         }
 
-        private static string HashToken(string token)
+        /// <summary>
+        /// Generate random refresh token (256-bit)
+        /// </summary>
+        private static string GenerateRefreshToken()
         {
-            using var sha256 = SHA256.Create();
-            var bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(token));
-            return Convert.ToBase64String(bytes);
+            var randomNumber = new byte[32];
+            using (var rng = RandomNumberGenerator.Create())
+            {
+                rng.GetBytes(randomNumber);
+                return Convert.ToBase64String(randomNumber);
+            }
         }
     }
 }

@@ -37,13 +37,34 @@ public class ApplicationDbContext : DbContext
 
         modelBuilder.Entity<RefreshToken>(entity =>
         {
-            entity.HasKey(x => x.Id);
-            entity.HasIndex(x => x.TokenHash).IsUnique();
-            entity.HasIndex(x => new { x.UserId, x.ExpiresAt });
-            entity.Property(x => x.TokenHash).IsRequired().HasMaxLength(128);
-            entity.Property(x => x.UserEmail).IsRequired().HasMaxLength(256);
-            entity.Property(x => x.UserDisplayName).IsRequired().HasMaxLength(200);
-            entity.Property(x => x.ReplacedByTokenHash).HasMaxLength(128);
+            entity.ToTable("Users");
+            entity.HasKey(u => u.Id);
+
+            entity.Property(u => u.Email)
+                .IsRequired()
+                .HasMaxLength(256);
+
+            entity.HasIndex(u => u.Email)
+                .IsUnique();
+
+            entity.Property(u => u.PasswordHash)
+                .IsRequired()
+                .HasMaxLength(512);
+
+            entity.Property(u => u.DisplayName)
+                .IsRequired()
+                .HasMaxLength(150);
+
+            entity.Property(u => u.AvatarUrl)
+                .HasMaxLength(1024);
+
+            entity.Property(u => u.Role)
+                .HasConversion<string>()
+                .HasMaxLength(32)
+                .IsRequired();
+
+            entity.Property(u => u.CreatedAt)
+                .IsRequired();
         });
     }
 }

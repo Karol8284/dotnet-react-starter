@@ -10,8 +10,6 @@ using Microsoft.Extensions.Options;
 using Shared.Responses;
 using Shared.Settings;
 using System.ComponentModel.DataAnnotations;
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
 
 namespace API.Controllers
 {
@@ -199,14 +197,10 @@ namespace API.Controllers
         {
             try
             {
-                var userId = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value
-                    ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-                var email = User.FindFirst(JwtRegisteredClaimNames.Email)?.Value
-                    ?? User.FindFirst(ClaimTypes.Email)?.Value;
-                var displayName = User.FindFirst("unique_name")?.Value
-                    ?? User.FindFirst(ClaimTypes.Name)?.Value;
-                var role = User.FindFirst("role")?.Value
-                    ?? User.FindFirst(ClaimTypes.Role)?.Value;
+                var userId = User.FindFirst("sub")?.Value;
+                var email = User.FindFirst("email")?.Value;
+                var displayName = User.FindFirst("unique_name")?.Value;
+                var role = User.FindFirst("role")?.Value;
 
                 if (string.IsNullOrWhiteSpace(userId))
                     return Unauthorized(ApiResponse<object>.Error(401, "User not authenticated", null));
