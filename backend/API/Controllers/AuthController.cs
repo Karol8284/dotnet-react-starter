@@ -11,8 +11,6 @@ using Microsoft.Extensions.Options;
 using Shared.Responses;
 using Shared.Settings;
 using System.ComponentModel.DataAnnotations;
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
 
 namespace API.Controllers
 {

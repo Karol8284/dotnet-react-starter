@@ -33,5 +33,6 @@ namespace Domain.Interfaces
         /// Check if a refresh token is revoked
         /// </summary>
         Task<bool> IsTokenRevokedAsync(string refreshToken);
+        
     }
 }

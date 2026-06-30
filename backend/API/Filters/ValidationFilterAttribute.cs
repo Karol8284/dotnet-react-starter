@@ -13,10 +13,14 @@ namespace API.Filters
             if (!context.ModelState.IsValid)
             {
                 var errors = context.ModelState
-                    .Where(x => x.Value.Errors.Count > 0)
+                    .Where(x => x.Value is { Errors.Count: > 0 })
                     .ToDictionary(
                         k => k.Key,
-                        v => v.Value.Errors.Select(e => e.ErrorMessage).ToArray()
+                        v => v.Value?.Errors
+                            .Select(e => e.ErrorMessage)
+                            .Where(message => !string.IsNullOrWhiteSpace(message))
+                            .ToArray()
+                            ?? []
                     );
 
                 context.Result = new BadRequestObjectResult(new
