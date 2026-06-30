@@ -50,7 +50,15 @@ export interface AuthUser {
   id: string; // Guid → UUID string
   email: string;
   displayName: string;
+  firstName?: string;
+  lastName?: string;
+  avatarUrl?: string | null;
   role: 'User' | 'Admin'; // UserRole enum
+}
+
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
 }
 
 /** Login response from backend */
@@ -135,5 +143,7 @@ export interface AuthContextType extends AuthState {
   logout: () => Promise<void>;
   refreshToken: () => Promise<void>;
   updateDisplayName: (displayName: string) => Promise<void>;
+  updateProfile: (data: { firstName?: string; lastName?: string; email?: string; avatarUrl?: string | null }) => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   clearError: () => void;
 }

@@ -4,6 +4,8 @@ import type {
   GetUserCountResponse,
   GetUserResponse,
   UpdateDisplayNameResponse,
+  UpdateUserRequest,
+  UpdateUserResponse,
   UpdateUserRoleResponse,
 } from '../../types';
 import { httpClient, type HttpClient } from './HttpClient';
@@ -21,6 +23,10 @@ export class UserApi {
 
   getUserCount(): Promise<GetUserCountResponse> {
     return this.client.get<GetUserCountResponse>('/users/count');
+  }
+
+  updateMe(request: UpdateUserRequest): Promise<UpdateUserResponse> {
+    return this.client.put<UpdateUserResponse, UpdateUserRequest>('/users/me', request);
   }
 
   updateDisplayName(id: string, displayName: string): Promise<UpdateDisplayNameResponse> {

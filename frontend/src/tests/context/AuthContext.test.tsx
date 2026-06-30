@@ -11,9 +11,10 @@ jest.mock('../../services/api', () => ({
     refreshToken: jest.fn(),
     logout: jest.fn(),
     me: jest.fn(),
+    changePassword: jest.fn(),
   },
   userApi: {
-    updateDisplayName: jest.fn(),
+    updateMe: jest.fn(),
   },
 }));
 
@@ -216,14 +217,17 @@ describe('AuthContext', () => {
     mockedTokenManager.getSession.mockReturnValue(session);
     mockedTokenManager.getUser.mockReturnValue(storedUser);
     mockedTokenManager.isAccessTokenExpired.mockReturnValue(false);
-    mockedUserApi.updateDisplayName.mockResolvedValue({
+    mockedUserApi.updateMe.mockResolvedValue({
       statusCode: 200,
       message: 'OK',
       data: {
         id: storedUser.id,
-        firstName: 'Stored',
+        firstName: 'Updated',
         lastName: 'User',
         email: storedUser.email,
+        displayName: 'Updated User',
+        avatarUrl: null,
+        role: 'User',
         phoneNumber: '+48 123 456 789',
         address: 'Warsaw',
         createdAt: '2026-06-26T00:00:00Z',
@@ -244,11 +248,44 @@ describe('AuthContext', () => {
       await latestAuth?.updateDisplayName('Updated User');
     });
 
-    expect(mockedUserApi.updateDisplayName).toHaveBeenCalledWith('user-1', 'Updated User');
+    expect(mockedUserApi.updateMe).toHaveBeenCalledWith({ firstName: 'Updated', lastName: 'User' });
     await waitFor(() => expect(screen.getByTestId('user')).toHaveTextContent('Updated User'));
     expect(mockedTokenManager.setSession).toHaveBeenCalledWith(session, {
       ...storedUser,
       displayName: 'Updated User',
+      firstName: 'Updated',
+      lastName: 'User',
+      avatarUrl: null,
+    });
+  });
+
+  it('changes password through the auth api', async () => {
+    mockedTokenManager.getSession.mockReturnValue(session);
+    mockedTokenManager.getUser.mockReturnValue(storedUser);
+    mockedTokenManager.isAccessTokenExpired.mockReturnValue(false);
+    mockedAuthApi.changePassword.mockResolvedValue({
+      statusCode: 200,
+      message: 'OK',
+      data: null,
+      errors: null,
+      timestamp: '2026-06-26T00:00:00Z',
+    });
+
+    render(
+      <AuthProvider>
+        <AuthConsumer />
+      </AuthProvider>
+    );
+
+    await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('authenticated'));
+
+    await act(async () => {
+      await latestAuth?.changePassword('password123', 'newPassword123');
+    });
+
+    expect(mockedAuthApi.changePassword).toHaveBeenCalledWith({
+      currentPassword: 'password123',
+      newPassword: 'newPassword123',
     });
   });
 

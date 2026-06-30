@@ -12,6 +12,7 @@ export type {
   VerifyTokenRequest,
   JwtTokens,
   AuthUser,
+  ChangePasswordRequest,
   LoginResponse,
   RegisterResponse,
   MeResponse,
