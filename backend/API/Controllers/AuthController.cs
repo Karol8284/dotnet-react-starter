@@ -1,4 +1,5 @@
 ﻿using Application.DTOs.Auth;
+using Application.Interfaces;
 using Domain.Entities;
 using Domain.Entities.JWT;
 using Domain.Interfaces;
@@ -19,17 +20,20 @@ namespace API.Controllers
     {
         private readonly IJwtTokenService _jwtTokenService;
         private readonly IAuthService _authService;
+        private readonly IUserService _userService;
         private readonly ILogger<AuthController> _logger;
         private readonly JwtSettings _jwtSettings;
 
         public AuthController(
             IJwtTokenService jwtTokenService,
             IAuthService authService,
+            IUserService userService,
             ILogger<AuthController> logger,
             IOptions<JwtSettings> jwtOptions)
         {
             _jwtTokenService = jwtTokenService;
             _authService = authService;
+            _userService = userService;
             _logger = logger;
             _jwtSettings = jwtOptions.Value;
         }
@@ -193,24 +197,31 @@ namespace API.Controllers
         /// </summary>
         [HttpGet("me")]
         [Authorize]
-        public IActionResult GetCurrentUser()
+        public async Task<IActionResult> GetCurrentUser()
         {
             try
             {
-                var userId = User.FindFirst("sub")?.Value;
-                var email = User.FindFirst("email")?.Value;
-                var displayName = User.FindFirst("unique_name")?.Value;
-                var role = User.FindFirst("role")?.Value;
+                var userId = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value
+                    ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
-                if (string.IsNullOrWhiteSpace(userId))
+                if (!Guid.TryParse(userId, out var currentUserId))
                     return Unauthorized(ApiResponse<object>.Error(401, "User not authenticated", null));
+
+                var userResult = await _userService.GetUserByIdAsync(currentUserId);
+                if (userResult.Data is null)
+                {
+                    return NotFound(ApiResponse<object>.Error(404, "User not found", null));
+                }
 
                 var userData = new
                 {
-                    id = userId,
-                    email = email,
-                    displayName = displayName,
-                    role = role
+                    id = userResult.Data.Id,
+                    email = userResult.Data.Email,
+                    displayName = userResult.Data.DisplayName,
+                    firstName = userResult.Data.FirstName,
+                    lastName = userResult.Data.LastName,
+                    avatarUrl = userResult.Data.AvatarUrl,
+                    role = userResult.Data.Role
                 };
 
                 return Ok(ApiResponse<object>.Success(userData, "Current user info", 200));
@@ -251,6 +262,43 @@ namespace API.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "❌ Token verification error");
+                return StatusCode(500, ApiResponse<object>.Error(500, "Internal server error", null));
+            }
+        }
+
+        [HttpPost("change-password")]
+        [Authorize]
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequestDto request)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ApiResponse<object>.Error(400, "Invalid request data", null));
+
+            var userId = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value
+                ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (!Guid.TryParse(userId, out var currentUserId))
+                return Unauthorized(ApiResponse<object>.Error(401, "User not authenticated", null));
+
+            if (string.IsNullOrWhiteSpace(request.CurrentPassword) || string.IsNullOrWhiteSpace(request.NewPassword))
+                return BadRequest(ApiResponse<object>.Error(400, "Current password and new password are required", null));
+
+            if (request.CurrentPassword == request.NewPassword)
+                return BadRequest(ApiResponse<object>.Error(400, "New password must be different from the current password", null));
+
+            try
+            {
+                var success = await _authService.ChangePasswordAsync(currentUserId, request.CurrentPassword, request.NewPassword);
+
+                if (!success)
+                {
+                    return BadRequest(ApiResponse<object>.Error(400, "Current password is invalid", null));
+                }
+
+                return Ok(ApiResponse<object>.Success(null, "Password changed successfully", 200));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Change password error");
                 return StatusCode(500, ApiResponse<object>.Error(500, "Internal server error", null));
             }
         }
@@ -318,24 +366,59 @@ namespace API.Controllers
                 _ => Request.IsHttps,
             };
         }
-    }
 
-    /// <summary>
-    /// Public auth token response sent to the frontend.
-    /// </summary>
-    public class AuthTokenResponse
-    {
-        public required string AccessToken { get; set; }
-        public required long ExpiresIn { get; set; }
-        public string TokenType { get; set; } = "Bearer";
-    }
+        // Pasword resets:
+        [HttpPost("forgot-password")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequestDto dto)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ApiResponse<object>.Error(400, "Invalid request data", null));
+            try
+            {
+                _logger.LogInformation("🔑 Forgot password request for email: {Email}", dto.Email);
+                var result = await _authService.SendPasswordResetEmailAsync(dto.Email);
+                if (!result)
+                {
+                    _logger.LogWarning("⚠️ Forgot password failed for email: {Email}", dto.Email);
+                    return NotFound(ApiResponse<object>.Error(404, "User not found", null));
+                }
+                _logger.LogInformation("✓ Password reset email sent to: {Email}", dto.Email);
+                return Ok(ApiResponse<object>.Success(null, "Password reset email sent", 200));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Forgot password error");
+                return StatusCode(500, ApiResponse<object>.Error(500, "Internal server error", null));
+            }
+        }
 
-    /// <summary>
-    /// Request DTO for token verification
-    /// </summary>
-    public class VerifyTokenRequest
-    {
-        [Required(ErrorMessage = "Token is required")]
-        public string Token { get; set; } = string.Empty;
+
+        [HttpPost("reset-password")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequestDto request)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ApiResponse<object>.Error(400, "Invalid request data", null));
+            try
+            {
+                var success = await _authService.ResetPasswordAsync(
+                    request.Email,
+                    request.Token,
+                    request.NewPassword);
+
+                if (!success)
+                {
+                    return BadRequest(ApiResponse<object>.Error(400, "Invalid token or email", null));
+                }
+
+                return Ok(ApiResponse<object>.Success(null, "Password reset successful", 200));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Reset password error");
+                return StatusCode(500, ApiResponse<object>.Error(500, "Internal server error", null));
+            }
+        }
     }
 }

@@ -1,6 +1,7 @@
 import type {
   ApiResponse,
   AuthUser,
+  ChangePasswordRequest,
   JwtTokens,
   LoginRequest,
   MeResponse,
@@ -37,6 +38,10 @@ export class AuthApi {
 
   me(): Promise<ApiResponse<AuthUser>> {
     return this.client.get<MeResponse>('/auth/me');
+  }
+
+  changePassword(request: ChangePasswordRequest): Promise<ApiResponse<null>> {
+    return this.client.post<ApiResponse<null>, ChangePasswordRequest>('/auth/change-password', request);
   }
 
   verifyToken(request: VerifyTokenRequest): Promise<ApiResponse<VerifyTokenResponse>> {

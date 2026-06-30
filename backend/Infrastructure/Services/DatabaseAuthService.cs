@@ -109,6 +109,12 @@ public class DatabaseAuthService : IAuthService
         return true;
     }
 
+    public async Task<bool> SendPasswordResetEmailAsync(string email)
+    {
+        var normalizedEmail = NormalizeEmail(email);
+        return await _dbContext.Users.AnyAsync(x => x.Email == normalizedEmail);
+    }
+
     public Task<string?> GeneratePasswordResetTokenAsync(string email)
         => Task.FromResult<string?>(null);
 
@@ -129,6 +135,12 @@ public class DatabaseAuthService : IAuthService
         user.IsEmailConfirmed = true;
         await _dbContext.SaveChangesAsync();
         return true;
+    }
+
+    public async Task<bool> ConfirmEmailConfirmedAsync(string email)
+    {
+        var normalizedEmail = NormalizeEmail(email);
+        return await _dbContext.Users.AnyAsync(x => x.Email == normalizedEmail && x.IsEmailConfirmed);
     }
 
     private static string NormalizeEmail(string email)

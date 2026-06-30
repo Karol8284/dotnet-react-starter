@@ -72,6 +72,13 @@ namespace Domain.Interfaces
         Task<bool> ChangePasswordAsync(Guid userId, string currentPassword, string newPassword);
 
         /// <summary>
+        /// Trigger the forgot-password flow for a known email address.
+        /// </summary>
+        /// <param name="email">The user email</param>
+        /// <returns>True when the email exists and the reset flow can continue</returns>
+        Task<bool> SendPasswordResetEmailAsync(string email);
+
+        /// <summary>
         /// Reset user password (forgot password flow).
         /// Generates reset token.
         /// </summary>
@@ -104,5 +111,7 @@ namespace Domain.Interfaces
         /// <param name="confirmationToken">The confirmation token</param>
         /// <returns>True if email confirmed successfully, false otherwise</returns>
         Task<bool> ConfirmEmailAsync(Guid userId, string confirmationToken);
+
+        Task<bool> ConfirmEmailConfirmedAsync(string email);
     }
 }

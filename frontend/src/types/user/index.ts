@@ -8,7 +8,10 @@ export interface UserDto {
   id: string;
   firstName: string;
   lastName: string;
+  displayName?: string;
   email: string;
+  avatarUrl?: string | null;
+  role?: 'User' | 'Admin';
   phoneNumber: string;
   address: string;
   createdAt: string;
@@ -26,8 +29,7 @@ export interface UpdateUserRequest {
   firstName?: string;
   lastName?: string;
   email?: string;
-  phoneNumber?: string;
-  address?: string;
+  avatarUrl?: string | null;
 }
 
 export interface DeleteUserRequest {

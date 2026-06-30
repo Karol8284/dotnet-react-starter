@@ -1,4 +1,5 @@
 using Domain.Entities;
+using Application.DTOs.Auth;
 using API.Controllers;
 using Domain.Enums;
 using Infrastructure.Data;
@@ -126,6 +127,43 @@ public class UsersApiIntegrationTests
         Assert.Null(getResult.Data);
     }
 
+    [Fact]
+    public async Task UpdateMe_Updates_profile_and_auth_me_returns_fresh_database_values()
+    {
+        await SeedUserAsync("profile.user@example.com", "password123", "Profile User", UserRole.User);
+
+        var tokens = await LoginAsync("profile.user@example.com", "password123");
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", tokens.AccessToken);
+
+        var updateResponse = await _client.PutAsJsonAsync("/api/users/me", new
+        {
+            FirstName = "Updated",
+            LastName = "Profile",
+            Email = "updated.profile@example.com",
+            AvatarUrl = "https://example.com/avatar.png"
+        });
+
+        updateResponse.EnsureSuccessStatusCode();
+
+        var updateResult = await updateResponse.Content.ReadFromJsonAsync<ApiResponse<Application.DTOs.User.UserDto>>();
+        Assert.NotNull(updateResult?.Data);
+        Assert.Equal("Updated Profile", updateResult.Data.DisplayName);
+        Assert.Equal("updated.profile@example.com", updateResult.Data.Email);
+        Assert.Equal("https://example.com/avatar.png", updateResult.Data.AvatarUrl);
+
+        var meResponse = await _client.GetAsync("/api/auth/me");
+
+        meResponse.EnsureSuccessStatusCode();
+        var meResult = await meResponse.Content.ReadFromJsonAsync<ApiResponse<CurrentUserDto>>();
+
+        Assert.NotNull(meResult?.Data);
+        Assert.Equal("Updated Profile", meResult.Data.DisplayName);
+        Assert.Equal("Updated", meResult.Data.FirstName);
+        Assert.Equal("Profile", meResult.Data.LastName);
+        Assert.Equal("updated.profile@example.com", meResult.Data.Email);
+        Assert.Equal("https://example.com/avatar.png", meResult.Data.AvatarUrl);
+    }
+
     private async Task<AuthTokenResponse> LoginAsync(string email, string password)
     {
         var loginResponse = await _client.PostAsJsonAsync("/api/auth/login", new { Email = email, Password = password });
@@ -156,5 +194,16 @@ public class UsersApiIntegrationTests
         dbContext.Users.Add(user);
         await dbContext.SaveChangesAsync();
         return user.Id;
+    }
+
+    private sealed class CurrentUserDto
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string DisplayName { get; set; } = string.Empty;
+        public string FirstName { get; set; } = string.Empty;
+        public string LastName { get; set; } = string.Empty;
+        public string? AvatarUrl { get; set; }
+        public string Role { get; set; } = string.Empty;
     }
 }

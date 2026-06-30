@@ -1,4 +1,5 @@
 using Domain.Entities;
+using Application.DTOs.Auth;
 using Domain.Entities.JWT;
 using Domain.Enums;
 using Infrastructure.Data;
@@ -197,6 +198,41 @@ public class AuthApiIntegrationTests
         });
 
         loginResponse.EnsureSuccessStatusCode();
+    }
+
+    [Fact]
+    public async Task ChangePassword_Updates_credentials_for_the_authenticated_user()
+    {
+        await SeedUserAsync("password.change@example.com", "password123", "Password Change", UserRole.User);
+
+        var tokens = await LoginAsync("password.change@example.com", "password123");
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", tokens.AccessToken);
+
+        var changeResponse = await _client.PostAsJsonAsync("/api/auth/change-password", new
+        {
+            CurrentPassword = "password123",
+            NewPassword = "newPassword123"
+        });
+
+        changeResponse.EnsureSuccessStatusCode();
+
+        _client.DefaultRequestHeaders.Authorization = null;
+
+        var oldLoginResponse = await _client.PostAsJsonAsync("/api/auth/login", new
+        {
+            Email = "password.change@example.com",
+            Password = "password123"
+        });
+
+        Assert.Equal(System.Net.HttpStatusCode.Unauthorized, oldLoginResponse.StatusCode);
+
+        var newLoginResponse = await _client.PostAsJsonAsync("/api/auth/login", new
+        {
+            Email = "password.change@example.com",
+            Password = "newPassword123"
+        });
+
+        newLoginResponse.EnsureSuccessStatusCode();
     }
 
     [Fact]

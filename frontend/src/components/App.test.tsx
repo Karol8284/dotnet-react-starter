@@ -17,6 +17,8 @@ test('renders the public home experience for anonymous users', () => {
     logout: jest.fn(),
     refreshToken: jest.fn(),
     updateDisplayName: jest.fn(),
+    updateProfile: jest.fn(),
+    changePassword: jest.fn(),
     clearError: jest.fn(),
   });
 

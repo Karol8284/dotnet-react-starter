@@ -1,8 +1,34 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import type { AuthContextType, AuthState, AuthUser, JwtTokens, RegisterRequest } from '../types';
+import type { AuthContextType, AuthState, AuthUser, JwtTokens, RegisterRequest, UpdateUserRequest, UserDto } from '../types';
 import { authApi } from '../services/api';
 import { userApi } from '../services/api';
 import { tokenManager } from '../services/api/TokenManager';
+
+function buildDisplayName(firstName?: string, lastName?: string) {
+  return [firstName?.trim(), lastName?.trim()].filter(Boolean).join(' ').trim();
+}
+
+function splitDisplayName(displayName: string) {
+  const parts = displayName.trim().split(/\s+/).filter(Boolean);
+  return {
+    firstName: parts[0] ?? '',
+    lastName: parts.slice(1).join(' '),
+  };
+}
+
+function mapUserDtoToAuthUser(user: UserDto, fallbackRole: AuthUser['role']): AuthUser {
+  const displayName = user.displayName?.trim() || buildDisplayName(user.firstName, user.lastName);
+
+  return {
+    id: user.id,
+    email: user.email,
+    displayName: displayName || 'User',
+    firstName: user.firstName,
+    lastName: user.lastName,
+    avatarUrl: user.avatarUrl ?? null,
+    role: user.role ?? fallbackRole,
+  };
+}
 
 const initialState: AuthState = {
   isAuthenticated: false,
@@ -199,7 +225,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const updateDisplayName = async (displayName: string) => {
+  const updateProfile = async (request: UpdateUserRequest) => {
     const currentUser = state.user;
     const currentTokens = tokenManager.getSession();
 
@@ -207,13 +233,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error('Authenticated user is required');
     }
 
-    await userApi.updateDisplayName(currentUser.id, displayName);
+    const response = await userApi.updateMe(request);
+    if (!response.data) {
+      throw new Error('Profile update response missing user payload');
+    }
 
-    const nextUser: AuthUser = {
-      ...currentUser,
-      displayName,
-    };
-
+    const nextUser = mapUserDtoToAuthUser(response.data, currentUser.role);
     tokenManager.setSession(currentTokens, nextUser);
     setState((current) => ({
       ...current,
@@ -221,6 +246,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       tokens: currentTokens,
       error: null,
     }));
+  };
+
+  const updateDisplayName = async (displayName: string) => {
+    const { firstName, lastName } = splitDisplayName(displayName);
+    await updateProfile({ firstName, lastName });
+  };
+
+  const changePassword = async (currentPassword: string, newPassword: string) => {
+    await authApi.changePassword({ currentPassword, newPassword });
   };
 
   const clearError = () => setState((current) => ({ ...current, error: null }));
@@ -232,6 +266,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     logout,
     refreshToken,
     updateDisplayName,
+    updateProfile,
+    changePassword,
     clearError,
   };
 

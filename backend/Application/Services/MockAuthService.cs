@@ -1,6 +1,8 @@
+using Application.DTOs.User;
 using Domain.Entities;
 using Domain.Interfaces;
 using Microsoft.Extensions.Logging;
+using Shared.Responses;
 using System;
 using System.Threading.Tasks;
 
@@ -89,12 +91,6 @@ namespace Application.Services
             return await Task.FromResult(userId == TestUser.Id);
         }
 
-        public async Task<bool> ChangePasswordAsync(Guid userId, string currentPassword, string newPassword)
-        {
-            _logger.LogInformation("🔑 Mock change password for user {UserId}", userId);
-            return await Task.FromResult(true);
-        }
-
         public async Task<string?> GeneratePasswordResetTokenAsync(string email)
         {
             return await Task.FromResult(Guid.NewGuid().ToString());
@@ -114,6 +110,103 @@ namespace Application.Services
         public async Task<bool> ConfirmEmailAsync(Guid userId, string confirmationToken)
         {
             _logger.LogInformation("✉️ Mock email confirmation for user {UserId}", userId);
+            return await Task.FromResult(true);
+        }
+
+        public async Task<bool> ConfirmEmailConfirmedAsync(string email)
+        {
+            _logger.LogInformation("✉️ Mock email confirmation check for {Email}", email);
+            return await Task.FromResult(email == TestUser.Email);
+        }
+        public async Task<bool> ChangePasswordAsync(Guid userId, string currentPassword, string newPassword)
+        {
+            _logger.LogInformation("🔑 Mock change password for user {UserId}", userId);
+            if (userId != TestUser.Id)
+            {
+                return await Task.FromResult(false);
+            }
+
+            if (currentPassword != "password123")
+            {
+                return await Task.FromResult(false);
+            }
+            return await Task.FromResult(true);
+        }
+
+        public async Task<bool> SendPasswordResetEmailAsync(string email)
+        {
+            _logger.LogInformation("📨 Mock forgot password for {Email}", email);
+            return await Task.FromResult(email == TestUser.Email);
+        }
+
+        public async Task<bool> UpdateUserEmail(Guid userId, string newEmail)
+        {
+            _logger.LogInformation("📧 Mock update email for user {UserId} to {NewEmail}", userId, newEmail);
+            
+            if(userId != TestUser.Id)
+            {
+                return await Task.FromResult(false);
+            }
+            if(newEmail != TestUser.Email)
+            {
+                return await Task.FromResult(false);
+            }
+            return await Task.FromResult(true);
+        }
+        public async Task<bool> UpdateUserPasswordHash(Guid userId, string newEmail)
+        {
+            _logger.LogInformation("📧 Mock update email for user {UserId} to {NewEmail}", userId, newEmail);
+
+            if (userId != TestUser.Id)
+            {
+                return await Task.FromResult(false);
+            }
+            if (newEmail != TestUser.Email)
+            {
+                return await Task.FromResult(false);
+            }
+            return await Task.FromResult(true);
+        }
+        public async Task<bool> UpdateUserDisplayName(Guid userId, string newEmail)
+        {
+            _logger.LogInformation("📧 Mock update email for user {UserId} to {NewEmail}", userId, newEmail);
+
+            if (userId != TestUser.Id)
+            {
+                return await Task.FromResult(false);
+            }
+            if (newEmail != TestUser.Email)
+            {
+                return await Task.FromResult(false);
+            }
+            return await Task.FromResult(true);
+        }
+        public async Task<bool> UpdateUserAvatarUrl(Guid userId, string newEmail)
+        {
+            _logger.LogInformation("📧 Mock update email for user {UserId} to {NewEmail}", userId, newEmail);
+
+            if (userId != TestUser.Id)
+            {
+                return await Task.FromResult(false);
+            }
+            if (newEmail != TestUser.Email)
+            {
+                return await Task.FromResult(false);
+            }
+            return await Task.FromResult(true);
+        }
+        public async Task<bool> UpdateUserRole(Guid userId, string newEmail)
+        {
+            _logger.LogInformation("📧 Mock update email for user {UserId} to {NewEmail}", userId, newEmail);
+
+            if (userId != TestUser.Id)
+            {
+                return await Task.FromResult(false);
+            }
+            if (newEmail != TestUser.Email)
+            {
+                return await Task.FromResult(false);
+            }
             return await Task.FromResult(true);
         }
     }

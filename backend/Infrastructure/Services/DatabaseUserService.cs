@@ -3,6 +3,7 @@ using Application.Interfaces;
 using Domain.Entities;
 using Domain.Enums;
 using Infrastructure.Data;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Shared.Responses;
 
@@ -53,6 +54,70 @@ public class DatabaseUserService : IUserService
     {
         var count = await _dbContext.Users.CountAsync();
         return ApiResponse<int>.Success(count);
+    }
+
+    public async Task<ApiResponse<UserDto>> UpdateUserAsync(Guid userId, UpdateUserDto dto)
+    {
+        var user = await _dbContext.Users.FirstOrDefaultAsync(x => x.Id == userId);
+        if (user is null)
+        {
+            return ApiResponse<UserDto>.Error(404, "User not found");
+        }
+
+        var (currentFirstName, currentLastName) = SplitDisplayName(user.DisplayName);
+
+        if (dto.FirstName is not null || dto.LastName is not null)
+        {
+            var firstName = dto.FirstName is null ? currentFirstName : dto.FirstName.Trim();
+            var lastName = dto.LastName is null ? currentLastName : dto.LastName.Trim();
+            var displayName = $"{firstName} {lastName}".Trim();
+
+            if (string.IsNullOrWhiteSpace(displayName))
+            {
+                return ApiResponse<UserDto>.Error(400, "First name or last name is required");
+            }
+
+            user.DisplayName = displayName;
+        }
+
+        if (dto.Email is not null)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Email))
+            {
+                return ApiResponse<UserDto>.Error(400, "Email is required");
+            }
+
+            var normalizedEmail = NormalizeEmail(dto.Email);
+            var emailInUse = await _dbContext.Users.AnyAsync(x => x.Email == normalizedEmail && x.Id != userId);
+            if (emailInUse)
+            {
+                return ApiResponse<UserDto>.Error(400, "User with this email already exists");
+            }
+
+            user.Email = normalizedEmail;
+        }
+
+        if (dto.AvatarUrl is not null)
+        {
+            var avatarUrl = dto.AvatarUrl.Trim();
+
+            if (string.IsNullOrWhiteSpace(avatarUrl))
+            {
+                user.AvatarUrl = null;
+            }
+            else if (!IsValidHttpUrl(avatarUrl))
+            {
+                return ApiResponse<UserDto>.Error(400, "Avatar URL must be a valid absolute http or https URL");
+            }
+            else
+            {
+                user.AvatarUrl = avatarUrl;
+            }
+        }
+
+        await _dbContext.SaveChangesAsync();
+
+        return ApiResponse<UserDto>.Success(MapToDto(user), "User profile updated");
     }
 
     public async Task<ApiResponse<bool>> DeactivateUserAsync(Guid userId)
@@ -162,15 +227,87 @@ public class DatabaseUserService : IUserService
 
     private static UserDto MapToDto(User user)
     {
-        var displayNameParts = user.DisplayName.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var (firstName, lastName) = SplitDisplayName(user.DisplayName);
 
         return new UserDto
         {
             Id = user.Id,
-            FirstName = displayNameParts.Length > 0 ? displayNameParts[0] : string.Empty,
-            LastName = displayNameParts.Length > 1 ? displayNameParts[1] : string.Empty,
+            FirstName = firstName,
+            LastName = lastName,
+            DisplayName = user.DisplayName,
             Email = user.Email,
+            AvatarUrl = user.AvatarUrl,
+            Role = user.Role.ToString(),
+            PhoneNumber = string.Empty,
+            Address = string.Empty,
             CreatedAt = user.CreatedAt
         };
+    }
+
+    private static (string FirstName, string LastName) SplitDisplayName(string displayName)
+    {
+        var parts = displayName.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return (
+            parts.Length > 0 ? parts[0] : string.Empty,
+            parts.Length > 1 ? parts[1] : string.Empty);
+    }
+
+    private static bool IsValidHttpUrl(string value)
+    {
+        return Uri.TryCreate(value, UriKind.Absolute, out var parsed)
+            && (parsed.Scheme == Uri.UriSchemeHttp || parsed.Scheme == Uri.UriSchemeHttps);
+    }
+
+    public async Task<ApiResponse<UserDto>> UpdateUserEmailAsync(Guid userId, string email)
+    {
+        var user = _dbContext.Users.FirstOrDefault(x => x.Id == userId);
+        if (user is null)
+        {
+            return ApiResponse<UserDto>.Error(404, "User not found");
+        }
+
+        user.Email = NormalizeEmail(email);
+        await _dbContext.SaveChangesAsync();
+
+        return ApiResponse<UserDto>.Success(MapToDto(user), "Email updated");
+    }
+
+    public async Task<ApiResponse<UserDto>> UpdateUserPasswordHashAsync(Guid userId, string passwordHash)
+    {
+        var user = _dbContext.Users.FirstOrDefault(x => x.Id == userId);
+        if (user is null)
+        {
+            return ApiResponse<UserDto>.Error(404, "User not found");
+        }
+        user.PasswordHash = passwordHash;
+        await _dbContext.SaveChangesAsync();
+
+        return ApiResponse<UserDto>.Success(MapToDto(user), "Password updated");
+    }
+
+    public async Task<ApiResponse<UserDto>> UpdateUserDisplayNameAsync(Guid userId, string displayName)
+    {
+        var user = _dbContext.Users.FirstOrDefault(x => x.Id == userId);
+        if (user is null)
+        {
+            return ApiResponse<UserDto>.Error(404, "User not found");
+        }
+        user.DisplayName = displayName;
+        await _dbContext.SaveChangesAsync();
+
+        return ApiResponse<UserDto>.Success(MapToDto(user), "Display name updated");
+    }
+
+    public async Task<ApiResponse<UserDto>> UpdateUserAvatarUrlAsync(Guid userId, string avatarUrl)
+    {
+        var user = _dbContext.Users.FirstOrDefault(x => x.Id == userId);
+        if (user is null)
+        {
+            return ApiResponse<UserDto>.Error(404, "User not found");
+        }
+        user.AvatarUrl = avatarUrl;
+        await _dbContext.SaveChangesAsync();
+
+        return ApiResponse<UserDto>.Success(MapToDto(user), "Avatar URL updated");
     }
 }
