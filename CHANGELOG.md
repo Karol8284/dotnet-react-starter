@@ -19,6 +19,10 @@ stored in the repository history.
 
 ### Maintenance
 
+- Updated compatible npm and NuGet dependencies across the main project and
+  reusable V8 backend templates.
+- Updated test tooling and AWS/identity/Serilog packages without introducing
+  major-framework migrations in this patch release.
 - Replaced the stale `weatherforecast` example in `backend/API/API.http` with
   current health, runtime-configuration, and authenticated API probes.
 
